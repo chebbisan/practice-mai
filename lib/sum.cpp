@@ -1,14 +1,14 @@
 #include "sum.hpp"
 
-extern "C" double Sum(double a, double b) {
+double Sum(double a, double b) {
     return a + b;
 }
 
-extern "C" complex_t SumComplex(complex_t a, complex_t b) {
+complex_t SumComplex(complex_t a, complex_t b) {
     return complex_t{a.real + b.real, a.imag + b.imag};
 }
 
-extern "C" double* SumArray(double* arr, int count) {
+double* SumArray(double* arr, int count) {
     double sum = 0;
     for (int i = 0; i < count; ++i) {
         sum += arr[i];
@@ -21,7 +21,7 @@ extern "C" double* SumArray(double* arr, int count) {
     return result_arr;
 }
 
-extern "C" complex_t* SumComplexArray(complex_t* arr, int count) {
+complex_t* SumComplexArray(complex_t* arr, int count) {
     complex_t sum{0, 0};
     for (int i = 0; i < count; ++i) {
         sum.real += arr[i].real;
@@ -35,9 +35,9 @@ extern "C" complex_t* SumComplexArray(complex_t* arr, int count) {
     return result_arr;
 }
 
-extern "C" void FreeDoubleArr(double* arr) {
+void FreeDoubleArr(double* arr) {
     delete[] arr;
 }
-extern "C" void FreeComplexArr(complex_t* arr) {
+void FreeComplexArr(complex_t* arr) {
     delete[] arr;
 }
