@@ -27,12 +27,12 @@ uint64_t CalculateAntennaArraySize(uint64_t Nx, uint64_t Ny) {
 
 // Расчет шага по оси X
 double CalculateDeltaX(double wave_length, double theta_x) {
-    return wave_length / (1. + sin(DegreesToRadians(theta_x)));
+    return wave_length / (1. + sin(theta_x));
 }
 
 // Расчет шага по оси Y
 double CalculateDeltaY(double wave_length, double theta_y) {
-    return wave_length / (1. + sin(DegreesToRadians(theta_y)));
+    return wave_length / (1. + sin(theta_y));
 }
 
 // Перевод углов в радианы
@@ -53,7 +53,7 @@ complex_t* Calculate1DAntennaArray(int N, int size, complex_t* f_arr, double* x_
         std::complex<double> part_sum(0.0, 0.0);
         for (int j = 0; j < N; ++j) {
             std::complex<double> f_elem(f_arr[i].real, f_arr[i].imag);
-            part_sum += f_elem * std::exp(-imag_one * wave_num * x_arr[j] * sin(DegreesToRadians(theta_arr[i])));
+            part_sum += f_elem * std::exp(-imag_one * wave_num * x_arr[j] * sin(theta_arr[i]));
         }
         radiation_pattern[i].real = part_sum.real() / N;
         radiation_pattern[i].imag = part_sum.imag() / N;
