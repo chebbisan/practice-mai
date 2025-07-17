@@ -1,45 +1,63 @@
 #include "antenna_array.hpp"
 
+
+// Расчет нормализующего коэффициента
 double CalculateNormalizingCoeff(complex_t* arr, int count) {
     double sum_abs = 0.0;
     for (int i = 0; i < count; ++i) {
-        sum_abs += ComplexAbs(arr[i]);
+        sum_abs += std::abs(std::complex<double>(arr[i].real, arr[i].imag));
     }
     return 1. / sum_abs;
 }
 
+// Расчет волнового числа
 double CalculateWaveNumber(double num, int phys) {
-    if (phys == 1) {
+    if (phys == FREQUENCY) {
         return 2 * M_PI * num / LIGHT_SPEED;
-    } else if (phys == 2) {
+    } else if (phys == WAVELENGTH) {
         return 2 * M_PI / num;
     }
     throw std::runtime_error("Wrong argument");
 }
 
+// Расчет количества ячеек в решетке
 uint64_t CalculateAntennaArraySize(uint64_t Nx, uint64_t Ny) {
     return Nx * Ny;
 }
 
-double* GenerateThetaRange(double dTheta = 1.0) {
-    int count = 180 / dTheta;
-    auto* theta_range = new double[count];
-    double start_val = 0.0;
-    for (int i = 0; i < count; ++i) {
-        theta_range[i] = start_val;
-        start_val += dTheta;
-    }
-    return theta_range;
+// Расчет шага по оси X
+double CalculateDeltaX(double wave_length, double theta_x) {
+    return wave_length / (1. + sin(DegreesToRadians(theta_x)));
 }
 
-double* GeneratePhiRange(double dPhi = 1.0) {
-    int count = 360 / dPhi;
-    auto* phi_range = new double[count];
-    double start_val = 0.0;
-    for (int i = 0; i < count; ++i) {
-        phi_range[i] = start_val;
-        start_val += dPhi;
+// Расчет шага по оси Y
+double CalculateDeltaY(double wave_length, double theta_y) {
+    return wave_length / (1. + sin(DegreesToRadians(theta_y)));
+}
+
+// Перевод углов в радианы
+double DegreesToRadians(double degrees) {
+    return degrees * (M_PI / 180);
+}
+
+// Перевод радиан в углы
+double RadiansToDegrees(double radians) {
+    return radians * (180 / M_PI);
+}
+
+// Расчет одномерной антенной решетки
+complex_t* Calculate1DAntennaArray(int N, int size, complex_t* f_arr, double* x_arr, double* theta_arr, double wave_num) {
+    std::complex<double> imag_one(0.0, 1.0);
+    complex_t* radiation_pattern = new complex_t[size];
+    for (int i = 0; i < size; ++i) {
+        std::complex<double> part_sum(0.0, 0.0);
+        for (int j = 0; j < N; ++j) {
+            std::complex<double> f_elem(f_arr[i].real, f_arr[i].imag);
+            part_sum += f_elem * std::exp(-imag_one * wave_num * x_arr[j] * sin(DegreesToRadians(theta_arr[i])));
+        }
+        radiation_pattern[i].real = part_sum.real() / N;
+        radiation_pattern[i].imag = part_sum.imag() / N;
     }
-    return phi_range;
+    return radiation_pattern;
 }
 

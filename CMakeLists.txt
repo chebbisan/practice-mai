@@ -10,13 +10,9 @@ add_executable(
     lib/antenna_array.cpp
 )
 
-add_library(Sum SHARED lib/sum.cpp)
-add_library(AntennaArray lib/antenna_array.cpp)
-
-install(
-    TARGETS Sum
-    LIBRARY DESTINATION lib
-    ARCHIVE DESTINATION lib
+add_library(AntennaArray SHARED 
+    lib/antenna_array.cpp
+    lib/sum.cpp
 )
 
 install (
