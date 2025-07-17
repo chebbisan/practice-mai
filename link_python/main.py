@@ -2,6 +2,7 @@ from pathlib import Path
 from complex import complex_t
 from util import *
 import numpy as np
+import matplotlib.pyplot as plt
 
 FREQUENCY = 1 # for calculating wavenum
 WAVELENGTH = 2 # for calculating wavenum
@@ -28,11 +29,15 @@ def main():
 
     # print(theta_range)
 
+    abs_rad_pattern = np.zeros_like(theta_range)
     radiation_pattern = c_lib.Calculate1DAntennaArray(ct.c_int(N), ct.c_int(theta_range.size), c_f_arr, c_x_arr, c_theta_range, ct.c_double(wave_num))
     for i in range(N):
-        print(radiation_pattern[i].real, radiation_pattern[i].imag, np.abs(radiation_pattern[i].real + 1j * radiation_pattern[i].imag))
-        
+        # print(radiation_pattern[i].real, radiation_pattern[i].imag, np.abs(radiation_pattern[i].real + 1j * radiation_pattern[i].imag))
+        abs_rad_pattern[i] = np.abs(radiation_pattern[i].real + 1j * radiation_pattern[i].imag)
 
+    plt.figure(figsize=(8,6))
+    plt.plot(theta_range, 20 * np.log(abs_rad_pattern))
+    plt.show()
     
 
     c_lib.FreeComplexArr(radiation_pattern)
