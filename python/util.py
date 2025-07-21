@@ -1,8 +1,9 @@
 import typing
 from typing import List
 import ctypes as ct
-from complex import complex_t
+from .complex import complex_t
 from numpy import sin
+import numpy as np
 
 # Инициализация аргументов C-функций
 def InitializeArgTypes(library):
@@ -62,3 +63,16 @@ def ListToCComplexArray(py_list: List):
 
 def CalculateDeltaX(wave_length, theta):
     return wave_length / (1 + sin(theta))
+
+def Calculate1DAntennaArray(N, f_arr, x_arr, theta_arr, wave_num):
+    imag_unit = np.complex128(0 + 1j)
+    radiation_pattern = [complex_t(1, 0)] * theta_arr.size
+    for i in range(theta_arr.size):
+        part_sum = np.complex128(0 + 1j * 0)
+        for j in range(N):
+            f_elem = np.complex128(f_arr[i].real + 1j * f_arr[j].imag)
+            exp_arg = -imag_unit * wave_num * x_arr[j] * np.sin(theta_arr[i])
+            part_sum += f_elem * np.exp(exp_arg)
+        radiation_pattern[i].real = part_sum.real / N
+        radiation_pattern[i].imag = part_sum.imag / N
+    return radiation_pattern
