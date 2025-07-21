@@ -2,6 +2,7 @@ import typing
 from typing import List
 import ctypes as ct
 from complex import complex_t
+from numpy import sin
 
 # Инициализация аргументов C-функций
 def InitializeArgTypes(library):
@@ -58,3 +59,6 @@ def ListToCDoubleArray(py_list: List):
 # Конвертация списка в C-массив
 def ListToCComplexArray(py_list: List):
     return (complex_t * len(py_list))(*py_list)
+
+def CalculateDeltaX(wave_length, theta):
+    return wave_length / (1 + sin(theta))

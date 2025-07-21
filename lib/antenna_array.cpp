@@ -47,13 +47,14 @@ double RadiansToDegrees(double radians) {
 
 // Расчет одномерной антенной решетки
 complex_t* Calculate1DAntennaArray(int N, int size, complex_t* f_arr, double* x_arr, double* theta_arr, double wave_num) {
-    std::complex<double> imag_one(0.0, 1.0);
+    static std::complex<double> imag_unit(0.0, 1.0);
     complex_t* radiation_pattern = new complex_t[size];
     for (int i = 0; i < size; ++i) {
         std::complex<double> part_sum(0.0, 0.0);
         for (int j = 0; j < N; ++j) {
             std::complex<double> f_elem(f_arr[i].real, f_arr[i].imag);
-            part_sum += f_elem * std::exp(-imag_one * wave_num * x_arr[j] * sin(theta_arr[i]));
+            auto exp_arg = -imag_unit * wave_num * x_arr[j] * std::sin(theta_arr[i]);
+            part_sum += f_elem * std::exp(exp_arg);
         }
         radiation_pattern[i].real = part_sum.real() / N;
         radiation_pattern[i].imag = part_sum.imag() / N;

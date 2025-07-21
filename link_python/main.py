@@ -4,9 +4,7 @@ from util import *
 import numpy as np
 import matplotlib.pyplot as plt
 
-FREQUENCY = 1  # for calculating wavenum
-WAVELENGTH = 2  # for calculating wavenum
-
+SPEED_OF_LIGHT = 3 * 10**8
 
 def main():
     # Путь до динамической библиотеки
@@ -14,19 +12,20 @@ def main():
     c_lib = InitializeLibrary(lib_name)
 
     # Подсчет необходимых значений
-    N = 10
+    N = 16
     freq_0 = 3 * 10**9
-    wave_length = (3 * 10**8) / freq_0
-    wave_num = c_lib.CalculateWaveNumber(
-        ct.c_double(freq_0), ct.c_int(FREQUENCY))
+    wave_length = (SPEED_OF_LIGHT) / freq_0
+    wave_num = 2 * np.pi / wave_length
 
-    theta_range = np.linspace(0, 2*np.pi, 1000)
-    f_arr = [complex_t(1, 0) for theta in theta_range]
+    theta_range = np.linspace(0, 2*np.pi, 1001)
+    f_arr = [complex_t(1, 0) for _ in theta_range]
+    delta_x = CalculateDeltaX(wave_length, np.pi / 6)
+    L = delta_x * (N - 1)
+    x_arr = [(i * delta_x) - L/2 for i in range(N)]
+    
+
     c_theta_range = ListToCDoubleArray(list(theta_range))
     c_f_arr = ListToCComplexArray(f_arr)
-
-    delta_x = c_lib.CalculateDeltaX(ct.c_double(wave_length), ct.c_double(np.pi / 6))
-    x_arr = [i * delta_x for i in range(N)]
     c_x_arr = ListToCDoubleArray(x_arr)
 
     abs_rad_pattern = np.zeros_like(theta_range)
@@ -36,9 +35,12 @@ def main():
         abs_rad_pattern[i] = np.abs(
             radiation_pattern[i].real + 1j * radiation_pattern[i].imag)
 
-    log_abs_rad_pattern = 20 * np.log(abs_rad_pattern)
-    log_ray_width = -13
-    log_side_ray = -30
+    log_abs_rad_pattern = 20 * np.log10(abs_rad_pattern)
+    log_ray_width = -3
+    log_side_ray = -13
+
+    rad_table = dict(zip(theta_range, abs_rad_pattern))
+    
 
     # Построение графика
     plt.figure(figsize=(8, 6))
