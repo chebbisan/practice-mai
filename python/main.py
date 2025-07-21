@@ -21,10 +21,10 @@ def main():
     f_arr = [complex_t(1, 0) for _ in theta_range]
     delta_x = CalculateDeltaX(wave_length, np.pi / 6)
     L = delta_x * (N - 1)
-    x_arr = [(i * delta_x) - L/2 for i in range(N)]
+    x_arr = np.array([(i * delta_x) - L/2 for i in range(N)])
     
 
-    c_theta_range = ListToCDoubleArray(list(theta_range))
+    c_theta_range = ListToCDoubleArray(theta_range)
     c_f_arr = ListToCComplexArray(f_arr)
     c_x_arr = ListToCDoubleArray(x_arr)
 
@@ -47,8 +47,8 @@ def main():
     plt.plot(np.degrees(theta_range) - 180, log_abs_rad_pattern)
     plt.axhline(log_ray_width, color='red', label=f"{log_ray_width} дБ", linestyle='--')
     plt.axhline(log_side_ray, color='green', label=f"{log_side_ray} дБ", linestyle='--')
-    plt.xlabel("Degrees")
-    plt.ylabel("F(theta)")
+    plt.xlabel(r"$\theta$, градус")
+    plt.ylabel(r"$|F(\theta)|$, дБ", rotation=0)
     plt.legend()
     plt.show()
 
