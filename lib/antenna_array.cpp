@@ -1,5 +1,5 @@
 #include "antenna_array.hpp"
-
+#include <vector>
 
 // Расчет нормализующего коэффициента
 double CalculateNormalizingCoeff(complex_t* arr, int count) {

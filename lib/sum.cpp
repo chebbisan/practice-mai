@@ -50,3 +50,11 @@ void FreeDoubleArr(double* arr) {
 void FreeComplexArr(complex_t* arr) {
     delete[] arr;
 }
+
+// Функция освобождения памяти двумерного массива
+void Free2DComplexArr(complex_t** arr, int size) {
+    for (int i = 0; i < size; ++i) {
+        delete[] arr[i];
+    }
+    delete[] arr;
+}
