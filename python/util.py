@@ -38,16 +38,6 @@ def _initialize_arg_types(library):
         ct.POINTER(ct.c_double),
         ct.c_double,
     ]
-    library.Calculate2DAntennaArray.argtypes = [
-        ct.c_int,
-        ct.c_int,
-        ct.c_int,
-        ct.POINTER(complex_t),
-        ct.POINTER(ct.c_double),
-        ct.POINTER(ct.c_double),
-        ct.POINTER(ct.c_double),
-        ct.c_double,
-    ]
 
 
 # Инициализация возвращаемых типов C-функций
@@ -68,7 +58,6 @@ def _initialize_res_types(library):
     library.DegreesToRadians.restype = ct.c_double
     library.RadiansToDegrees.restype = ct.c_double
     library.Calculate1DAntennaArray.restype = ct.POINTER(complex_t)
-    library.Calculate2DAntennaArray.restype = ct.POINTER(complex_t)
 
 
 # Инициализация C-библиотеки
@@ -110,11 +99,11 @@ def calculate_delta_x(wave_length, theta):
 def calculate_1d_antenna_array(N, f_arr, x_arr, theta_arr, wave_num):
     logger.debug("Python 1D calculation: N=%d, theta_points=%d", N, theta_arr.size)
     imag_unit = np.complex128(0 + 1j)
-    radiation_pattern = [complex_t(1, 0)] * theta_arr.size
+    radiation_pattern = [complex_t(0, 0) for _ in range(theta_arr.size)]
     for i in range(theta_arr.size):
         part_sum = np.complex128(0 + 1j * 0)
         for j in range(N):
-            f_elem = np.complex128(f_arr[i].real + 1j * f_arr[j].imag)
+            f_elem = np.complex128(f_arr[j].real + 1j * f_arr[j].imag)
             exp_arg = -imag_unit * wave_num * x_arr[j] * np.sin(theta_arr[i])
             part_sum += f_elem * np.exp(exp_arg)
         radiation_pattern[i].real = part_sum.real / N

@@ -1,5 +1,9 @@
 import ctypes as ct
 import logging
+import platform
+from pathlib import Path
+
+import yaml
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -21,23 +25,33 @@ logger = logging.getLogger(__name__)
 
 SPEED_OF_LIGHT = 3 * 10**8
 
+ROOT = Path(__file__).parent.parent
+_LIB_SUFFIX = ".dylib" if platform.system() == "Darwin" else ".so"
+LIB_PATH = ROOT / "build" / f"libAntennaArray{_LIB_SUFFIX}"
+CONFIG_PATH = Path(__file__).parent / "config.yaml"
+
 
 def main():
     logger.info("Starting 1D antenna array calculation")
 
-    lib_name = "../build/libAntennaArray.so"
-    c_lib = initialize_library(lib_name)
+    with open(CONFIG_PATH) as f:
+        cfg = yaml.safe_load(f)["array_1d"]
+    N         = cfg["N"]
+    freq_0    = cfg["freq_hz"]
+    d         = cfg["d"]
+    steer_deg = cfg["steer_deg"]
+    n_theta   = cfg["n_theta"]
 
-    N = 16
-    freq_0 = 3 * 10**9
+    c_lib = initialize_library(str(LIB_PATH))
+
     wave_length = SPEED_OF_LIGHT / freq_0
     wave_num = 2 * np.pi / wave_length
     logger.debug("N=%d, freq_0=%.2e Hz, wave_length=%.4f m, wave_num=%.4f rad/m",
                  N, freq_0, wave_length, wave_num)
 
-    theta_range = np.linspace(0, 2 * np.pi, 1001)
-    f_arr = [complex_t(1, 0) for _ in theta_range]
-    delta_x = calculate_delta_x(wave_length, np.pi / 6)
+    theta_range = np.linspace(-np.pi / 2, np.pi / 2, n_theta)
+    f_arr = [complex_t(1, 0) for _ in range(N)]
+    delta_x = d if d is not None else calculate_delta_x(wave_length, np.radians(steer_deg))
     L = delta_x * (N - 1)
     x_arr = np.array([(i * delta_x) - L / 2 for i in range(N)])
     logger.debug("delta_x=%.4f m, array aperture L=%.4f m", delta_x, L)
@@ -57,11 +71,10 @@ def main():
     )
     logger.info("C library calculation complete")
 
-    abs_rad_pattern = np.zeros_like(theta_range)
-    for i in range(theta_range.size):
-        abs_rad_pattern[i] = np.abs(
-            radiation_pattern[i].real + 1j * radiation_pattern[i].imag
-        )
+    abs_rad_pattern = np.array([
+        np.abs(complex(radiation_pattern[i].real, radiation_pattern[i].imag))
+        for i in range(theta_range.size)
+    ])
 
     log_abs_rad_pattern = 20 * np.log10(abs_rad_pattern)
     log_ray_width = -3
@@ -70,7 +83,7 @@ def main():
 
     logger.info("Plotting radiation pattern")
     plt.figure(figsize=(8, 6))
-    plt.plot(np.degrees(theta_range) - 180, log_abs_rad_pattern)
+    plt.plot(np.degrees(theta_range), log_abs_rad_pattern)
     plt.axhline(log_ray_width, color="red", label=f"{log_ray_width} дБ", linestyle="--")
     plt.axhline(log_side_ray, color="green", label=f"{log_side_ray} дБ", linestyle="--")
     plt.xlabel(r"$\theta$, градус")

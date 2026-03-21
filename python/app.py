@@ -100,11 +100,10 @@ class CalcWorker(QThread):
             delta_y = calculate_delta_x(wave_length, steer_y)
             x_arr2 = np.array([i * delta_x - delta_x * (p["Nx"] - 1) / 2 for i in range(p["Nx"])])
             y_arr = np.array([i * delta_y - delta_y * (p["Ny"] - 1) / 2 for i in range(p["Ny"])])
-            f_arr_2d = [complex_t(1, 0)] * theta_x.size
-
-            c_f2 = list_to_c_complex_array(f_arr_2d)
+            c_f2 = list_to_c_complex_array([complex_t(1, 0)] * p["Nx"])
             c_x2 = list_to_c_double_array(x_arr2)
             c_tx = list_to_c_double_array(theta_x)
+            c_f_y = list_to_c_complex_array([complex_t(1, 0)] * p["Ny"])
             c_y = list_to_c_double_array(y_arr)
             c_ty = list_to_c_double_array(theta_y)
 
@@ -112,16 +111,15 @@ class CalcWorker(QThread):
                 ct.c_int(p["Nx"]), ct.c_int(theta_x.size),
                 c_f2, c_x2, c_tx, ct.c_double(wave_num),
             )
-            raw_2d = self.c_lib.Calculate2DAntennaArray(
-                ct.c_int(p["Ny"]), ct.c_int(theta_x.size), ct.c_int(theta_y.size),
-                f_row, c_y, c_tx, c_ty, ct.c_double(wave_num),
+            f_col = self.c_lib.Calculate1DAntennaArray(
+                ct.c_int(p["Ny"]), ct.c_int(theta_y.size),
+                c_f_y, c_y, c_ty, ct.c_double(wave_num),
             )
-            pat_2d = np.array([
-                abs(raw_2d[i * theta_y.size + j].real + 1j * raw_2d[i * theta_y.size + j].imag)
-                for i in range(theta_x.size) for j in range(theta_y.size)
-            ]).reshape(theta_x.size, theta_y.size)
+            row_np = np.array([complex(f_row[i].real, f_row[i].imag) for i in range(theta_x.size)])
+            col_np = np.array([complex(f_col[j].real, f_col[j].imag) for j in range(theta_y.size)])
+            pat_2d = np.abs(np.outer(row_np, col_np))
             self.c_lib.FreeComplexArr(f_row)
-            self.c_lib.FreeComplexArr(raw_2d)
+            self.c_lib.FreeComplexArr(f_col)
             logger.debug("2D pattern done")
 
             self.finished.emit({

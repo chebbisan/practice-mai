@@ -3,6 +3,8 @@ import logging
 import platform
 from pathlib import Path
 
+import yaml
+
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -11,7 +13,6 @@ from util import (
     initialize_library,
     list_to_c_double_array,
     list_to_c_complex_array,
-    calculate_delta_x,
 )
 
 logging.basicConfig(
@@ -28,29 +29,38 @@ _LIB_SUFFIX = ".dylib" if platform.system() == "Darwin" else ".so"
 LIB_PATH = ROOT / "build" / f"libAntennaArray{_LIB_SUFFIX}"
 
 
+CONFIG_PATH = Path(__file__).parent / "config.yaml"
+
+
 def main():
     logger.info("Starting 2D antenna array calculation")
 
+    with open(CONFIG_PATH) as f:
+        cfg = yaml.safe_load(f)["array_2d"]
+    Nx      = cfg["Nx"]
+    Ny      = cfg["Ny"]
+    freq_0  = cfg["freq_hz"]
+    d_x     = cfg["d_x"]
+    d_y     = cfg["d_y"]
+    n_theta = cfg["n_theta"]
+
     c_lib = initialize_library(str(LIB_PATH))
 
-    Nx, Ny = 16, 16
-    freq_0 = 3e9
     wave_length = SPEED_OF_LIGHT / freq_0
-    wave_num = 2 * np.pi / wave_length
+    wave_num    = 2 * np.pi / wave_length
+    delta_x     = d_x if d_x is not None else wave_length / 2
+    delta_y     = d_y if d_y is not None else wave_length / 2
     logger.debug("Nx=%d, Ny=%d, freq_0=%.2e Hz, wave_length=%.4f m, wave_num=%.4f rad/m",
                  Nx, Ny, freq_0, wave_length, wave_num)
 
-    theta_x = np.linspace(-np.pi / 2, np.pi / 2, 181)
-    theta_y = np.linspace(-np.pi / 2, np.pi / 2, 181)
+    theta_x = np.linspace(-np.pi / 2, np.pi / 2, n_theta)
+    theta_y = np.linspace(-np.pi / 2, np.pi / 2, n_theta)
     logger.debug("theta_x: %d points, theta_y: %d points", theta_x.size, theta_y.size)
-
-    delta_x = calculate_delta_x(wave_length, np.pi / 6)
-    delta_y = calculate_delta_x(wave_length, np.pi / 6)
     x_arr = np.array([i * delta_x - delta_x * (Nx - 1) / 2 for i in range(Nx)])
     y_arr = np.array([i * delta_y - delta_y * (Ny - 1) / 2 for i in range(Ny)])
     logger.debug("delta_x=%.4f m, delta_y=%.4f m", delta_x, delta_y)
 
-    f_arr = [complex_t(1, 0)] * theta_x.size
+    f_arr = [complex_t(1, 0)] * Nx
     c_f = list_to_c_complex_array(f_arr)
     c_x = list_to_c_double_array(x_arr)
     c_theta_x = list_to_c_double_array(theta_x)
@@ -66,35 +76,54 @@ def main():
     )
     logger.info("Row pattern calculated")
 
+    f_arr_y = [complex_t(1, 0)] * Ny
+    c_f_y = list_to_c_complex_array(f_arr_y)
     c_y = list_to_c_double_array(y_arr)
     c_theta_y = list_to_c_double_array(theta_y)
 
-    logger.info("Calling Calculate2DAntennaArray (Ny=%d, %dx%d grid)", Ny, theta_x.size, theta_y.size)
-    result = c_lib.Calculate2DAntennaArray(
+    logger.info("Calling Calculate1DAntennaArray for column pattern (N=%d, points=%d)", Ny, theta_y.size)
+    f_col = c_lib.Calculate1DAntennaArray(
         ct.c_int(Ny),
-        ct.c_int(theta_x.size),
         ct.c_int(theta_y.size),
-        f_row,
+        c_f_y,
         c_y,
-        c_theta_x,
         c_theta_y,
         ct.c_double(wave_num),
     )
     logger.info("2D calculation complete")
 
     logger.debug("Building magnitude matrix (%dx%d)", theta_x.size, theta_y.size)
-    pattern_2d = np.array(
-        [
-            abs(result[i * theta_y.size + j].real + 1j * result[i * theta_y.size + j].imag)
-            for i in range(theta_x.size)
-            for j in range(theta_y.size)
-        ]
-    ).reshape(theta_x.size, theta_y.size)
+    row_np = np.array([complex(f_row[i].real, f_row[i].imag) for i in range(theta_x.size)])
+    col_np = np.array([complex(f_col[j].real, f_col[j].imag) for j in range(theta_y.size)])
+    pattern_2d = np.abs(np.outer(row_np, col_np))
 
     log_pattern = np.clip(20 * np.log10(np.maximum(pattern_2d, 1e-10)), -40, 0)
     logger.debug("Peak pattern value: %.4f dB", log_pattern.max())
 
+    log_row = 20 * np.log10(np.maximum(np.abs(row_np), 1e-10))
+    log_col = 20 * np.log10(np.maximum(np.abs(col_np), 1e-10))
+
     TX, TY = np.meshgrid(np.degrees(theta_x), np.degrees(theta_y), indexing="ij")
+
+    # --- 1D row and column patterns ---
+    logger.info("Plotting 1D row and column patterns")
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
+    ax1.plot(np.degrees(theta_x), log_row)
+    ax1.axhline(-3, color="red", linestyle="--", label="-3 дБ")
+    ax1.axhline(-13, color="green", linestyle="--", label="-13 дБ")
+    ax1.set_xlabel(r"$\theta_x$, градус")
+    ax1.set_ylabel(r"$|F(\theta_x)|$, дБ", rotation=0)
+    ax1.set_title("Диаграмма строки")
+    ax1.legend()
+    ax2.plot(np.degrees(theta_y), log_col)
+    ax2.axhline(-3, color="red", linestyle="--", label="-3 дБ")
+    ax2.axhline(-13, color="green", linestyle="--", label="-13 дБ")
+    ax2.set_xlabel(r"$\theta_y$, градус")
+    ax2.set_ylabel(r"$|F(\theta_y)|$, дБ", rotation=0)
+    ax2.set_title("Диаграмма столбца")
+    ax2.legend()
+    plt.tight_layout()
+    plt.show()
 
     # --- Heatmap ---
     logger.info("Plotting heatmap")
@@ -159,7 +188,7 @@ def main():
 
     logger.debug("Freeing C memory")
     c_lib.FreeComplexArr(f_row)
-    c_lib.FreeComplexArr(result)
+    c_lib.FreeComplexArr(f_col)
     logger.info("Done")
 
 

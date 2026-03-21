@@ -1,0 +1,23 @@
+# Antenna array configuration
+# eq. 12.7: 2Θ₀.₇ ≈ 51°·λ/(N·d)
+
+# ── 1D array (main.py) ───────────────────────────────────────────────────────
+array_1d:
+  N: 16           # number of elements
+  freq_hz: 3.0e+9  # carrier frequency, Hz
+  d: null         # element spacing, m  (null → λ/(1+sin(steer_deg)))
+  steer_deg: 30   # max steering angle for spacing formula (used when d=null)
+  n_theta: 1001   # angular resolution
+
+# ── 2D array (main2d.py) ─────────────────────────────────────────────────────
+# Examples:
+#   Nx=8,  Ny=32, d=null  →  2Θ_x ≈ 12.75°,  2Θ_y ≈ 3.19°  (asymmetric)
+#   Nx=16, Ny=16, d=null  →  2Θ ≈ 6.375° in both planes     (symmetric)
+#   Nx=4,  Ny=4,  d=null  →  2Θ ≈ 25.5°, many sidelobes     (wide beam)
+array_2d:
+  Nx: 8           # number of elements along x
+  Ny: 32          # number of elements along y
+  freq_hz: 3.0e+9  # carrier frequency, Hz
+  d_x: null       # element spacing along x, m  (null → λ/2)
+  d_y: null       # element spacing along y, m  (null → λ/2)
+  n_theta: 361    # angular resolution (points per axis)
