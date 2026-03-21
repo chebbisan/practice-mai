@@ -1,6 +1,7 @@
 matplotlib
 numpy
 PyQt6
+PyYAML
 pytest
 pytest-benchmark
 scipy

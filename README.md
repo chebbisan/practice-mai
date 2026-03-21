@@ -22,11 +22,13 @@
 │   ├── util.py             # загрузка библиотеки, конвертеры, Python-реализации
 │   ├── main.py             # скрипт: 1D диаграмма + график
 │   ├── main2d.py           # скрипт: 2D диаграмма + тепловая карта + 3D графики
-│   └── app.py              # PyQt6 GUI
+│   ├── app.py              # PyQt6 GUI
+│   └── config.yaml         # параметры решёток (N, Nx/Ny, freq, d, n_theta)
 ├── tests/
 │   ├── conftest.py
 │   ├── test_antenna_array.py   # 30 unit-тестов
 │   └── test_benchmark.py       # бенчмарк C vs Python
+├── run.sh                  # скрипт сборки + запуска (1d|2d|app|nb|bench|test)
 ├── antenna_array.ipynb     # интерактивная визуализация
 ├── benchmark.ipynb         # сравнение производительности
 └── requirements.txt
@@ -65,6 +67,40 @@ deactivate
 ---
 
 ## Запуск
+
+### Универсальный скрипт run.sh
+
+`run.sh` автоматически собирает проект (если нужно) и запускает нужный режим одной командой:
+
+```bash
+./run.sh 1d      # 1D диаграмма направленности
+./run.sh 2d      # 2D диаграмма (тепловая карта + 3D)
+./run.sh app     # PyQt6 GUI
+./run.sh nb      # Jupyter notebook
+./run.sh bench   # бенчмарк
+./run.sh test    # тесты
+```
+
+### Конфигурация (config.yaml)
+
+Параметры решёток задаются в `python/config.yaml`:
+
+```yaml
+array_1d:
+  N: 16           # число элементов
+  freq_hz: 3.0e+9 # несущая частота, Гц
+  d: null         # шаг (null → λ/(1+sin(steer_deg)))
+  steer_deg: 30   # максимальный угол сканирования (при d=null)
+  n_theta: 1001   # угловое разрешение
+
+array_2d:
+  Nx: 8           # элементов по x
+  Ny: 32          # элементов по y
+  freq_hz: 3.0e+9
+  d_x: null       # шаг по x (null → λ/2)
+  d_y: null       # шаг по y (null → λ/2)
+  n_theta: 361    # точек на ось
+```
 
 ### GUI (PyQt6)
 
