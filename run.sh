@@ -28,6 +28,6 @@ case "$1" in
         echo "  nb     Open main notebook (antenna_array.ipynb)"
         echo "  bench  Run benchmark suite"
         echo "  test   Run test suite"
-        exit 1
+        exit 0
         ;;
 esac
