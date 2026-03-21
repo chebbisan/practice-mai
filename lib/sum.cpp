@@ -1,5 +1,7 @@
 #include "sum.hpp"
 
+#include <iostream>
+
 // Сумма двух действительных чисел
 double Sum(double a, double b) { return a + b; }
 
