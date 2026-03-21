@@ -1,47 +1,114 @@
 # Практика 3 курс
 
-Этот проект позволяет быстро рассчитывать одномерную (в будущем и двумерную) атенную решетку.
+Проект вычисляет диаграммы направленности одномерных и двумерных антенных решёток.
+Ядро написано на C++, Python загружает скомпилированную библиотеку через `ctypes`.
 
-# Как использовать
+## Требования
 
-В папке репозитория нужно создать директорию `build` и зайти в нее
+- CMake 3.28+
+- C++ компилятор (gcc / clang)
+- Python 3.9+
 
-- `mkdir build && cd build`
+## Структура проекта
 
-Собрать проект
-
-- `cmake ..`
-- `make`
-
-Проект собран, можно пробовать `antenna_array.ipynb` или `python/main.py`
-
-# Тесты
-
-Для запуска тестов нужен собранный проект (см. выше) и установленный `pytest`:
-
-```bash
-pip install pytest numpy
+```
+├── lib/                    # C++ ядро
+│   ├── antenna_array.cpp/hpp   # расчёт диаграмм, волновое число, шаги
+│   ├── complex.cpp/hpp         # структура complex_t
+│   └── sum.cpp/hpp             # вспомогательные суммы
+├── src/main.cpp            # standalone C++ исполняемый файл
+├── python/
+│   ├── complex.py          # зеркало C-структуры complex_t
+│   ├── util.py             # загрузка библиотеки, конвертеры, Python-реализации
+│   ├── main.py             # скрипт: 1D диаграмма + график
+│   ├── main2d.py           # скрипт: 2D диаграмма + тепловая карта + 3D графики
+│   └── app.py              # PyQt6 GUI
+├── tests/
+│   ├── conftest.py
+│   ├── test_antenna_array.py   # 30 unit-тестов
+│   └── test_benchmark.py       # бенчмарк C vs Python
+├── antenna_array.ipynb     # интерактивная визуализация
+├── benchmark.ipynb         # сравнение производительности
+└── requirements.txt
 ```
 
-Запуск всех тестов из корня репозитория:
+---
+
+## Сборка C++ библиотеки
+
+```bash
+mkdir build && cd build
+cmake ..
+make
+```
+
+Создаёт:
+- `build/Practice` — standalone исполняемый файл
+- `build/libAntennaArray.so` / `.dylib` (macOS) — библиотека для Python
+
+---
+
+## Виртуальное окружение
+
+```bash
+python -m venv .venv
+source .venv/bin/activate        # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+Деактивировать:
+
+```bash
+deactivate
+```
+
+---
+
+## Запуск
+
+### GUI (PyQt6)
+
+```bash
+cd python && python app.py
+```
+
+Параметры в левой панели: N элементов (1D), Nx/Ny (2D), частота, углы наведения θ_x₀/θ_y₀, количество точек θ.
+Результат отображается в 4 вкладках: **1D**, **2D тепловая карта**, **3D поверхность**, **3D шар**.
+
+### Скрипты
+
+```bash
+# 1D диаграмма направленности
+cd python && python main.py
+
+# 2D диаграмма (тепловая карта + два 3D графика)
+cd python && python main2d.py
+```
+
+### Jupyter notebooks
+
+```bash
+jupyter notebook antenna_array.ipynb   # визуализация
+jupyter notebook benchmark.ipynb       # сравнение производительности
+```
+
+---
+
+## Тесты
+
+Требуется собранный проект и активированное окружение.
 
 ```bash
 python -m pytest tests/ -v
 ```
 
-Тесты, использующие C-библиотеку, автоматически пропускаются, если `build/libAntennaArray.so` (или `.dylib` на macOS) не собран.
+Тесты C-библиотеки автоматически пропускаются, если `.so` / `.dylib` не собран.
 
-# Benchmark
+---
 
-Бенчмарк сравнивает скорость `Calculate1DAntennaArray` через C-библиотеку и чистый Python.
+## Benchmark
 
-Установить зависимости:
-
-```bash
-pip install pytest numpy pytest-benchmark
-```
-
-Запуск:
+Сравнивает скорость `Calculate1DAntennaArray` через C-библиотеку и чистый Python.
 
 ```bash
 python -m pytest tests/test_benchmark.py -v

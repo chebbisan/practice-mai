@@ -34,4 +34,10 @@ double RadiansToDegrees(double radians);
 // Расчет одномерной антенной решетки
 complex_t* Calculate1DAntennaArray(int N, int size, complex_t* f_arr, double* x_arr,
                                    double* theta_arr, double wave_num);
+
+// Расчет двумерной антенной решетки
+// Результат — плоский массив [size_x * size_y] в порядке [i_theta_x][i_theta_y]
+complex_t* Calculate2DAntennaArray(int Ny, int size_x, int size_y, complex_t* f_row,
+                                   double* y_arr, double* theta_x_arr,
+                                   double* theta_y_arr, double wave_num);
 };

@@ -1,0 +1,6 @@
+matplotlib
+numpy
+PyQt6
+pytest
+pytest-benchmark
+scipy
