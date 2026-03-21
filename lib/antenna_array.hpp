@@ -1,13 +1,12 @@
 #pragma once
 
 #include "complex.hpp"
+
 #include <cstdint>
 
 #define FREQUENCY 1
 #define WAVELENGTH 2
 #define LIGHT_SPEED 300000000
-
-
 
 extern "C" {
 
@@ -33,6 +32,6 @@ double DegreesToRadians(double degrees);
 double RadiansToDegrees(double radians);
 
 // Расчет одномерной антенной решетки
-complex_t* Calculate1DAntennaArray(int N, int size, complex_t* f_arr, double* x_arr, double* theta_arr, double wave_num);
-
+complex_t* Calculate1DAntennaArray(int N, int size, complex_t* f_arr, double* x_arr,
+                                   double* theta_arr, double wave_num);
 };

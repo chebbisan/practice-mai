@@ -1,5 +1,6 @@
-#include <iostream>
 #include "../lib/sum.hpp"
+
+#include <iostream>
 
 /*
 1. Бибилиотека на c++ (dll)
@@ -11,7 +12,7 @@
 4. Диаграмма решетки
 F(theta, phi) = K * Sum(A_n * exp(-j ))
 + еще тестовая версия в MathCad
-Сроки: до след чт, первые 3 пункта. 
+Сроки: до след чт, первые 3 пункта.
 
 GitHub: Virtual Machine работать тут
 */

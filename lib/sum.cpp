@@ -1,16 +1,14 @@
 #include "sum.hpp"
 
 // Сумма двух действительных чисел
-double Sum(double a, double b) {
-    return a + b;
-}
+double Sum(double a, double b) { return a + b; }
 
 // Сумма двух комплексных чисел
 complex_t SumComplex(complex_t a, complex_t b) {
     return complex_t{a.real + b.real, a.imag + b.imag};
 }
 
-// Сумма всех чисел в массиве. 
+// Сумма всех чисел в массиве.
 // Результат - массив с элементами равными сумме
 double* SumArray(double* arr, int count) {
     double sum = 0;
@@ -25,7 +23,7 @@ double* SumArray(double* arr, int count) {
     return result_arr;
 }
 
-// Сумма всех чисел в массиве. 
+// Сумма всех чисел в массиве.
 // Результат - массив с элементами равными сумме
 complex_t* SumComplexArray(complex_t* arr, int count) {
     complex_t sum{0, 0};
@@ -42,14 +40,10 @@ complex_t* SumComplexArray(complex_t* arr, int count) {
 }
 
 // Функция освобождения памяти
-void FreeDoubleArr(double* arr) {
-    delete[] arr;
-}
+void FreeDoubleArr(double* arr) { delete[] arr; }
 
 // Функция освобождения памяти
-void FreeComplexArr(complex_t* arr) {
-    delete[] arr;
-}
+void FreeComplexArr(complex_t* arr) { delete[] arr; }
 
 // Функция освобождения памяти двумерного массива
 void Free2DComplexArr(complex_t** arr, int size) {

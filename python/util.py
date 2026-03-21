@@ -1,12 +1,14 @@
-import typing
 from typing import List
+
 import ctypes as ct
-from .complex import complex_t
-from numpy import sin
 import numpy as np
+from numpy import sin
+
+from .complex import complex_t
+
 
 # Инициализация аргументов C-функций
-def InitializeArgTypes(library):
+def _initialize_arg_types(library):
     library.Sum.argtypes = [ct.c_double, ct.c_double]
     library.SumComplex.argtypes = [complex_t, complex_t]
     library.SumArray.argtypes = [ct.POINTER(ct.c_double), ct.c_int]
@@ -21,10 +23,18 @@ def InitializeArgTypes(library):
     library.CalculateDeltaY.argtypes = [ct.c_double, ct.c_double]
     library.DegreesToRadians.argtypes = [ct.c_double]
     library.RadiansToDegrees.argtypes = [ct.c_double]
-    library.Calculate1DAntennaArray.argtypes = [ct.c_int, ct.c_int, ct.POINTER(complex_t), ct.POINTER(ct.c_double), ct.POINTER(ct.c_double), ct.c_double]
+    library.Calculate1DAntennaArray.argtypes = [
+        ct.c_int,
+        ct.c_int,
+        ct.POINTER(complex_t),
+        ct.POINTER(ct.c_double),
+        ct.POINTER(ct.c_double),
+        ct.c_double,
+    ]
+
 
 # Инициализация возвращаемых типов C-функций
-def InitializeResTypes(library):
+def _initialize_res_types(library):
     library.Sum.restype = ct.c_double
     library.SumComplex.restype = complex_t
     library.SumArray.restype = ct.POINTER(ct.c_double)
@@ -41,30 +51,35 @@ def InitializeResTypes(library):
     library.RadiansToDegrees.restype = ct.c_double
     library.Calculate1DAntennaArray.restype = ct.POINTER(complex_t)
 
+
 # Инициализация C-библиотеки
-def InitializeLibrary(path_to_lib):
+def initialize_library(path_to_lib):
     c_lib = ct.CDLL(path_to_lib)
-    InitializeArgTypes(c_lib)
-    InitializeResTypes(c_lib)
+    _initialize_arg_types(c_lib)
+    _initialize_res_types(c_lib)
     return c_lib
 
 
 # Конвертация списка в C-массив
-def ListToCIntegerArray(py_list: List):
+def list_to_c_int_array(py_list: List):
     return (ct.c_int * len(py_list))(*py_list)
 
+
 # Конвертация списка в C-массив
-def ListToCDoubleArray(py_list: List):
+def list_to_c_double_array(py_list: List):
     return (ct.c_double * len(py_list))(*py_list)
 
+
 # Конвертация списка в C-массив
-def ListToCComplexArray(py_list: List):
+def list_to_c_complex_array(py_list: List):
     return (complex_t * len(py_list))(*py_list)
 
-def CalculateDeltaX(wave_length, theta):
+
+def calculate_delta_x(wave_length, theta):
     return wave_length / (1 + sin(theta))
 
-def Calculate1DAntennaArray(N, f_arr, x_arr, theta_arr, wave_num):
+
+def calculate_1d_antenna_array(N, f_arr, x_arr, theta_arr, wave_num):
     imag_unit = np.complex128(0 + 1j)
     radiation_pattern = [complex_t(1, 0)] * theta_arr.size
     for i in range(theta_arr.size):

@@ -1,5 +1,6 @@
 #include "antenna_array.hpp"
-#include <vector>
+
+#include <stdexcept>
 
 // Расчет нормализующего коэффициента
 double CalculateNormalizingCoeff(complex_t* arr, int count) {
@@ -21,9 +22,7 @@ double CalculateWaveNumber(double num, int phys) {
 }
 
 // Расчет количества ячеек в решетке
-uint64_t CalculateAntennaArraySize(uint64_t Nx, uint64_t Ny) {
-    return Nx * Ny;
-}
+uint64_t CalculateAntennaArraySize(uint64_t Nx, uint64_t Ny) { return Nx * Ny; }
 
 // Расчет шага по оси X
 double CalculateDeltaX(double wave_length, double theta_x) {
@@ -36,17 +35,14 @@ double CalculateDeltaY(double wave_length, double theta_y) {
 }
 
 // Перевод углов в радианы
-double DegreesToRadians(double degrees) {
-    return degrees * (M_PI / 180);
-}
+double DegreesToRadians(double degrees) { return degrees * (M_PI / 180); }
 
 // Перевод радиан в углы
-double RadiansToDegrees(double radians) {
-    return radians * (180 / M_PI);
-}
+double RadiansToDegrees(double radians) { return radians * (180 / M_PI); }
 
 // Расчет одномерной антенной решетки
-complex_t* Calculate1DAntennaArray(int N, int size, complex_t* f_arr, double* x_arr, double* theta_arr, double wave_num) {
+complex_t* Calculate1DAntennaArray(int N, int size, complex_t* f_arr, double* x_arr,
+                                   double* theta_arr, double wave_num) {
     static std::complex<double> imag_unit(0.0, 1.0);
     complex_t* radiation_pattern = new complex_t[size];
     for (int i = 0; i < size; ++i) {
@@ -61,4 +57,3 @@ complex_t* Calculate1DAntennaArray(int N, int size, complex_t* f_arr, double* x_
     }
     return radiation_pattern;
 }
-
