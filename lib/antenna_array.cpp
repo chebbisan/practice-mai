@@ -57,4 +57,3 @@ complex_t* Calculate1DAntennaArray(int N, int size, complex_t* f_arr, double* x_
     }
     return radiation_pattern;
 }
-

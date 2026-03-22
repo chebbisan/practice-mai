@@ -2,7 +2,6 @@
 
 #include <iostream>
 
-
 int main() {
     complex_t* c_arr = new complex_t[10];
     for (int i = 0; i < 10; ++i) {
