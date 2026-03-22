@@ -8,7 +8,7 @@ from numpy import sin
 try:
     from .complex import complex_t  # imported as package (e.g. tests)
 except ImportError:
-    from complex import complex_t  # run as script from python/
+    from complex import complex_t  # run as script from app/
 
 logger = logging.getLogger(__name__)
 

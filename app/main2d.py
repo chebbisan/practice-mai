@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 SPEED_OF_LIGHT = 3e8
 
 ROOT = Path(__file__).parent.parent
-_LIB_SUFFIX = ".dylib" if platform.system() == "Darwin" else ".so"
+_LIB_SUFFIX = {"Darwin": ".dylib", "Windows": ".dll"}.get(platform.system(), ".so")
 LIB_PATH = ROOT / "build" / f"libAntennaArray{_LIB_SUFFIX}"
 
 

@@ -12,12 +12,12 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from python.complex import complex_t
+from app.complex import complex_t
 import ctypes as ct
 
 import yaml
 
-from python.util import (
+from app.util import (
     initialize_library,
     list_to_c_int_array,
     list_to_c_double_array,
@@ -31,9 +31,9 @@ from python.util import (
 # ---------------------------------------------------------------------------
 
 ROOT = Path(__file__).parent.parent
-CONFIG_PATH = ROOT / "python" / "config.yaml"
+CONFIG_PATH = ROOT / "app" / "config.yaml"
 
-_LIB_SUFFIX = ".dylib" if platform.system() == "Darwin" else ".so"
+_LIB_SUFFIX = {"Darwin": ".dylib", "Windows": ".dll"}.get(platform.system(), ".so")
 _LIB_PATH = ROOT / "build" / f"libAntennaArray{_LIB_SUFFIX}"
 
 

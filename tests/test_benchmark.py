@@ -13,8 +13,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from python.complex import complex_t
-from python.util import (
+from app.complex import complex_t
+from app.util import (
     initialize_library,
     list_to_c_double_array,
     list_to_c_complex_array,
@@ -23,7 +23,7 @@ from python.util import (
 )
 
 ROOT = Path(__file__).parent.parent
-_LIB_SUFFIX = ".dylib" if platform.system() == "Darwin" else ".so"
+_LIB_SUFFIX = {"Darwin": ".dylib", "Windows": ".dll"}.get(platform.system(), ".so")
 _LIB_PATH = ROOT / "build" / f"libAntennaArray{_LIB_SUFFIX}"
 
 N = 16

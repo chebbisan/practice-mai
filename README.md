@@ -17,7 +17,7 @@
 │   ├── complex.cpp/hpp         # структура complex_t
 │   └── sum.cpp/hpp             # вспомогательные суммы
 ├── src/main.cpp            # standalone C++ исполняемый файл
-├── python/
+├── app/
 │   ├── complex.py          # зеркало C-структуры complex_t
 │   ├── util.py             # загрузка библиотеки, конвертеры, Python-реализации
 │   ├── main.py             # скрипт: 1D диаграмма + график
@@ -28,9 +28,12 @@
 │   ├── conftest.py
 │   ├── test_antenna_array.py   # 30 unit-тестов
 │   └── test_benchmark.py       # бенчмарк C vs Python
+├── notebooks/
+│   ├── antenna_array.ipynb # интерактивная визуализация
+│   └── benchmark.ipynb     # сравнение производительности
+├── docs/
+│   └── stuff.pdf           # справочные материалы
 ├── run.sh                  # скрипт сборки + запуска (1d|2d|app|nb|bench|test)
-├── antenna_array.ipynb     # интерактивная визуализация
-├── benchmark.ipynb         # сравнение производительности
 └── requirements.txt
 ```
 
@@ -83,7 +86,7 @@ deactivate
 
 ### Конфигурация (config.yaml)
 
-Параметры решёток задаются в `python/config.yaml`:
+Параметры решёток задаются в `app/config.yaml`:
 
 ```yaml
 array_1d:
@@ -105,7 +108,7 @@ array_2d:
 ### GUI (PyQt6)
 
 ```bash
-cd python && python app.py
+cd app && python app.py
 ```
 
 Параметры в левой панели: N элементов (1D), Nx/Ny (2D), частота, углы наведения θ_x₀/θ_y₀, количество точек θ.
@@ -115,17 +118,17 @@ cd python && python app.py
 
 ```bash
 # 1D диаграмма направленности
-cd python && python main.py
+cd app && python main.py
 
 # 2D диаграмма (тепловая карта + два 3D графика)
-cd python && python main2d.py
+cd app && python main2d.py
 ```
 
 ### Jupyter notebooks
 
 ```bash
-jupyter notebook antenna_array.ipynb   # визуализация
-jupyter notebook benchmark.ipynb       # сравнение производительности
+jupyter notebook notebooks/antenna_array.ipynb   # визуализация
+jupyter notebook notebooks/benchmark.ipynb       # сравнение производительности
 ```
 
 ---
@@ -157,4 +160,4 @@ python -m pytest tests/test_benchmark.py --benchmark-save=baseline
 python -m pytest tests/test_benchmark.py --benchmark-compare=baseline
 ```
 
-Интерактивная версия: `benchmark.ipynb`
+Интерактивная версия: `notebooks/benchmark.ipynb`

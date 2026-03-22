@@ -13,10 +13,10 @@ fi
 cmake --build "$BUILD_DIR"
 
 case "$1" in
-    1d)    python3 "$ROOT/python/main.py" ;;
-    2d)    python3 "$ROOT/python/main2d.py" ;;
-    app)   python3 "$ROOT/python/app.py" ;;
-    nb)    jupyter notebook "$ROOT/antenna_array.ipynb" ;;
+    1d)    python3 "$ROOT/app/main.py" ;;
+    2d)    python3 "$ROOT/app/main2d.py" ;;
+    app)   python3 "$ROOT/app/app.py" ;;
+    nb)    jupyter notebook "$ROOT/notebooks/antenna_array.ipynb" ;;
     bench) python3 -m pytest "$ROOT/tests/test_benchmark.py" ;;
     test)  python3 -m pytest "$ROOT/tests/test_antenna_array.py" -v ;;
     *)
@@ -25,7 +25,7 @@ case "$1" in
         echo "  1d     Run 1D antenna array (main.py)"
         echo "  2d     Run 2D antenna array (main2d.py)"
         echo "  app    Run PyQt6 GUI (app.py)"
-        echo "  nb     Open main notebook (antenna_array.ipynb)"
+        echo "  nb     Open main notebook (notebooks/antenna_array.ipynb)"
         echo "  bench  Run benchmark suite"
         echo "  test   Run test suite"
         exit 0
