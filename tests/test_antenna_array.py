@@ -200,37 +200,6 @@ class TestCalculateWaveNumber:
         assert lib.CalculateWaveNumber(freq, self.FREQUENCY) == pytest.approx(expected)
 
 
-class TestCalculateAntennaArraySize:
-    def test_basic(self):
-        lib = _lib()
-        assert lib.CalculateAntennaArraySize(4, 4) == 16
-
-    def test_linear(self):
-        lib = _lib()
-        assert lib.CalculateAntennaArraySize(8, 1) == 8
-
-
-class TestCalculateDelta:
-    def test_delta_x_broadside(self):
-        lib = _lib()
-        wave_length = 0.1
-        result = lib.CalculateDeltaX(wave_length, 0.0)
-        assert result == pytest.approx(wave_length)
-
-    def test_delta_y_broadside(self):
-        lib = _lib()
-        wave_length = 0.1
-        result = lib.CalculateDeltaY(wave_length, 0.0)
-        assert result == pytest.approx(wave_length)
-
-    def test_delta_x_thirty_degrees(self):
-        lib = _lib()
-        wave_length = 0.1
-        theta = math.pi / 6
-        expected = wave_length / (1 + math.sin(theta))
-        assert lib.CalculateDeltaX(wave_length, theta) == pytest.approx(expected)
-
-
 class TestAngleConversions:
     def test_degrees_to_radians_90(self):
         lib = _lib()
@@ -390,81 +359,6 @@ class TestCalculate1DAntennaArrayPythonValues:
 
 
 # ---------------------------------------------------------------------------
-# 2D pattern — outer product
-# ---------------------------------------------------------------------------
-
-
-class TestPattern2D:
-    """The 2D pattern is computed as np.outer(row, col) in Python."""
-
-    def _compute(self, Nx=4, Ny=8, n_theta=61):
-        lib = _lib()
-        wave_length = 0.1
-        wave_num = 2 * math.pi / wave_length
-        delta = wave_length / 2
-        x_arr = np.array([i * delta - delta * (Nx - 1) / 2 for i in range(Nx)])
-        y_arr = np.array([i * delta - delta * (Ny - 1) / 2 for i in range(Ny)])
-        theta_x = np.linspace(-math.pi / 2, math.pi / 2, n_theta)
-        theta_y = np.linspace(-math.pi / 2, math.pi / 2, n_theta)
-
-        c_fx = list_to_c_complex_array([complex_t(1, 0)] * Nx)
-        c_fy = list_to_c_complex_array([complex_t(1, 0)] * Ny)
-        c_x = list_to_c_double_array(x_arr)
-        c_y = list_to_c_double_array(y_arr)
-        c_tx = list_to_c_double_array(theta_x)
-        c_ty = list_to_c_double_array(theta_y)
-
-        f_row = lib.Calculate1DAntennaArray(Nx, n_theta, c_fx, c_x, c_tx, ct.c_double(wave_num))
-        f_col = lib.Calculate1DAntennaArray(Ny, n_theta, c_fy, c_y, c_ty, ct.c_double(wave_num))
-
-        row_np = np.array([complex(f_row[i].real, f_row[i].imag) for i in range(n_theta)])
-        col_np = np.array([complex(f_col[j].real, f_col[j].imag) for j in range(n_theta)])
-        pattern_2d = np.abs(np.outer(row_np, col_np))
-
-        lib.FreeComplexArr(f_row)
-        lib.FreeComplexArr(f_col)
-        return pattern_2d, row_np, col_np
-
-    def test_output_shape(self):
-        n_theta = 61
-        pattern_2d, _, _ = self._compute(Nx=4, Ny=8, n_theta=n_theta)
-        assert pattern_2d.shape == (n_theta, n_theta)
-
-    def test_broadside_is_peak(self):
-        n_theta = 61
-        pattern_2d, _, _ = self._compute(n_theta=n_theta)
-        center = n_theta // 2
-        assert pattern_2d[center, center] == pytest.approx(pattern_2d.max(), rel=1e-6)
-
-    def test_broadside_peak_is_one(self):
-        n_theta = 61
-        pattern_2d, _, _ = self._compute(n_theta=n_theta)
-        center = n_theta // 2
-        assert pattern_2d[center, center] == pytest.approx(1.0, abs=1e-6)
-
-    def test_separability(self):
-        """F_2D[i,j] must equal |row[i]| * |col[j]| exactly."""
-        n_theta = 31
-        pattern_2d, row_np, col_np = self._compute(n_theta=n_theta)
-        expected = np.outer(np.abs(row_np), np.abs(col_np))
-        np.testing.assert_allclose(pattern_2d, expected, atol=1e-12)
-
-    def test_asymmetric_array_beamwidths(self):
-        """Nx < Ny → row pattern wider than column pattern (eq. 12.7)."""
-        n_theta = 361
-        _, row_np, col_np = self._compute(Nx=4, Ny=16, n_theta=n_theta)
-        theta = np.linspace(-math.pi / 2, math.pi / 2, n_theta)
-        half_max = 1 / math.sqrt(2)
-
-        def beamwidth(pattern):
-            mag = np.abs(pattern) / np.abs(pattern).max()
-            above = np.where(mag >= half_max)[0]
-            return theta[above[-1]] - theta[above[0]]
-
-        assert beamwidth(row_np) > beamwidth(col_np)
-
-
-# ---------------------------------------------------------------------------
 # Config loading
 # ---------------------------------------------------------------------------
 
@@ -477,26 +371,19 @@ class TestConfig:
     def test_freq_hz_is_float(self):
         cfg = self._load()
         assert isinstance(cfg["array_1d"]["freq_hz"], float)
-        assert isinstance(cfg["array_2d"]["freq_hz"], float)
 
     def test_freq_hz_value(self):
         cfg = self._load()
         assert cfg["array_1d"]["freq_hz"] == pytest.approx(3e9)
-        assert cfg["array_2d"]["freq_hz"] == pytest.approx(3e9)
 
     def test_null_spacing_parses_as_none(self):
         cfg = self._load()
         assert cfg["array_1d"]["d"] is None
-        assert cfg["array_2d"]["d_x"] is None
-        assert cfg["array_2d"]["d_y"] is None
 
     def test_integer_fields(self):
         cfg = self._load()
         assert isinstance(cfg["array_1d"]["N"], int)
-        assert isinstance(cfg["array_2d"]["Nx"], int)
-        assert isinstance(cfg["array_2d"]["Ny"], int)
 
     def test_n_theta_positive(self):
         cfg = self._load()
         assert cfg["array_1d"]["n_theta"] > 0
-        assert cfg["array_2d"]["n_theta"] > 0

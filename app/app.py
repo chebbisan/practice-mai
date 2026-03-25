@@ -1,4 +1,3 @@
-import ctypes as ct
 import logging
 import platform
 import sys
@@ -14,7 +13,10 @@ from matplotlib.figure import Figure
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtWidgets import (
     QApplication,
+    QCheckBox,
+    QComboBox,
     QDoubleSpinBox,
+    QFileDialog,
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
@@ -29,13 +31,8 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from complex import complex_t
-from util import (
-    initialize_library,
-    list_to_c_double_array,
-    list_to_c_complex_array,
-    calculate_delta_x,
-)
+from util import initialize_library, calculate_delta_x
+from main import compute_pattern, load_array_from_csv
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -67,68 +64,27 @@ class CalcWorker(QThread):
     def run(self):
         try:
             p = self.params
-            wave_length = SPEED_OF_LIGHT / p["freq"]
-            wave_num = 2 * np.pi / wave_length
-            steer_x = np.radians(p["steer_x"])
-            steer_y = np.radians(p["steer_y"])
-            logger.info("Calculation started: N=%d, Nx=%d, Ny=%d, freq=%.2e",
-                        p["N"], p["Nx"], p["Ny"], p["freq"])
 
-            theta_1d = np.linspace(-np.pi / 2, np.pi / 2, p["n_points"])
-            theta_x = np.linspace(-np.pi / 2, np.pi / 2, p["n_points"])
-            theta_y = np.linspace(-np.pi / 2, np.pi / 2, p["n_points"])
+            if p.get("csv_path"):
+                x_arr, amplitudes = load_array_from_csv(Path(p["csv_path"]))
+                logger.info("CSV mode: %s, N=%d", p["csv_path"], len(x_arr))
+            else:
+                wave_length = SPEED_OF_LIGHT / p["freq"]
+                steer_x = np.radians(p["steer_x"])
+                delta_x = calculate_delta_x(wave_length, steer_x)
+                N = p["N"]
+                L = delta_x * (N - 1)
+                x_arr = np.array([i * delta_x - L / 2 for i in range(N)])
+                amplitudes = np.ones(N)
+                logger.info("Uniform mode: N=%d, freq=%.2e", N, p["freq"])
 
-            # --- 1D ---
-            delta_x = calculate_delta_x(wave_length, steer_x)
-            x_arr = np.array([i * delta_x - delta_x * (p["N"] - 1) / 2 for i in range(p["N"])])
-            f_arr_1d = [complex_t(1, 0)] * theta_1d.size
-            c_f = list_to_c_complex_array(f_arr_1d)
-            c_x = list_to_c_double_array(x_arr)
-            c_theta_1d = list_to_c_double_array(theta_1d)
-
-            raw_1d = self.c_lib.Calculate1DAntennaArray(
-                ct.c_int(p["N"]), ct.c_int(theta_1d.size),
-                c_f, c_x, c_theta_1d, ct.c_double(wave_num),
+            result = compute_pattern(
+                x_arr, amplitudes,
+                p["freq"], p["n_points"],
+                p["elem_pattern"],
+                self.c_lib,
             )
-            pat_1d = np.array([
-                abs(raw_1d[i].real + 1j * raw_1d[i].imag) for i in range(theta_1d.size)
-            ])
-            self.c_lib.FreeComplexArr(raw_1d)
-            logger.debug("1D pattern done")
-
-            # --- 2D ---
-            delta_y = calculate_delta_x(wave_length, steer_y)
-            x_arr2 = np.array([i * delta_x - delta_x * (p["Nx"] - 1) / 2 for i in range(p["Nx"])])
-            y_arr = np.array([i * delta_y - delta_y * (p["Ny"] - 1) / 2 for i in range(p["Ny"])])
-            c_f2 = list_to_c_complex_array([complex_t(1, 0)] * p["Nx"])
-            c_x2 = list_to_c_double_array(x_arr2)
-            c_tx = list_to_c_double_array(theta_x)
-            c_f_y = list_to_c_complex_array([complex_t(1, 0)] * p["Ny"])
-            c_y = list_to_c_double_array(y_arr)
-            c_ty = list_to_c_double_array(theta_y)
-
-            f_row = self.c_lib.Calculate1DAntennaArray(
-                ct.c_int(p["Nx"]), ct.c_int(theta_x.size),
-                c_f2, c_x2, c_tx, ct.c_double(wave_num),
-            )
-            f_col = self.c_lib.Calculate1DAntennaArray(
-                ct.c_int(p["Ny"]), ct.c_int(theta_y.size),
-                c_f_y, c_y, c_ty, ct.c_double(wave_num),
-            )
-            row_np = np.array([complex(f_row[i].real, f_row[i].imag) for i in range(theta_x.size)])
-            col_np = np.array([complex(f_col[j].real, f_col[j].imag) for j in range(theta_y.size)])
-            pat_2d = np.abs(np.outer(row_np, col_np))
-            self.c_lib.FreeComplexArr(f_row)
-            self.c_lib.FreeComplexArr(f_col)
-            logger.debug("2D pattern done")
-
-            self.finished.emit({
-                "theta_1d": theta_1d,
-                "pat_1d": pat_1d,
-                "theta_x": theta_x,
-                "theta_y": theta_y,
-                "pat_2d": pat_2d,
-            })
+            self.finished.emit(dict(result))
         except Exception as e:
             logger.error("Calculation error: %s", e)
             self.error.emit(str(e))
@@ -163,6 +119,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.c_lib = c_lib
         self.worker = None
+        self._csv_path = None
         self.setWindowTitle("Antenna Array Calculator")
         self.resize(1200, 700)
         self._build_ui()
@@ -172,28 +129,24 @@ class MainWindow(QMainWindow):
 
         # --- Controls ---
         controls = QWidget()
-        controls.setFixedWidth(240)
+        controls.setFixedWidth(260)
         ctrl_layout = QVBoxLayout(controls)
         ctrl_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
 
-        group = QGroupBox("Параметры")
-        form = QFormLayout(group)
+        # ── Режим ────────────────────────────────────────────────────────
+        group_mode = QGroupBox("Режим")
+        mode_layout = QVBoxLayout(group_mode)
+        self.chk_csv = QCheckBox("Из CSV (произвольное расположение)")
+        self.chk_csv.toggled.connect(self._on_mode_changed)
+        mode_layout.addWidget(self.chk_csv)
+
+        # ── Равномерная решётка ───────────────────────────────────────────
+        self.group_uniform = QGroupBox("Равномерная решётка")
+        form_u = QFormLayout(self.group_uniform)
 
         self.spin_N = QSpinBox()
         self.spin_N.setRange(1, 256)
         self.spin_N.setValue(16)
-        self.spin_Nx = QSpinBox()
-        self.spin_Nx.setRange(1, 256)
-        self.spin_Nx.setValue(16)
-        self.spin_Ny = QSpinBox()
-        self.spin_Ny.setRange(1, 256)
-        self.spin_Ny.setValue(16)
-
-        self.spin_freq = QDoubleSpinBox()
-        self.spin_freq.setRange(0.1, 100.0)
-        self.spin_freq.setValue(3.0)
-        self.spin_freq.setSuffix(" ГГц")
-        self.spin_freq.setDecimals(2)
 
         self.spin_steer_x = QDoubleSpinBox()
         self.spin_steer_x.setRange(-89.0, 89.0)
@@ -201,31 +154,54 @@ class MainWindow(QMainWindow):
         self.spin_steer_x.setSuffix("°")
         self.spin_steer_x.setDecimals(1)
 
-        self.spin_steer_y = QDoubleSpinBox()
-        self.spin_steer_y.setRange(-89.0, 89.0)
-        self.spin_steer_y.setValue(30.0)
-        self.spin_steer_y.setSuffix("°")
-        self.spin_steer_y.setDecimals(1)
+        form_u.addRow("N:", self.spin_N)
+        form_u.addRow("Угол θ₀:", self.spin_steer_x)
+
+        # ── CSV ───────────────────────────────────────────────────────────
+        self.group_csv = QGroupBox("CSV-файл")
+        csv_layout = QVBoxLayout(self.group_csv)
+        self.btn_browse = QPushButton("Выбрать файл…")
+        self.btn_browse.clicked.connect(self._on_browse)
+        self.lbl_csv = QLabel("файл не выбран")
+        self.lbl_csv.setWordWrap(True)
+        self.lbl_csv.setStyleSheet("color: gray; font-size: 10px;")
+        csv_layout.addWidget(self.btn_browse)
+        csv_layout.addWidget(self.lbl_csv)
+        self.group_csv.hide()
+
+        # ── Общие параметры ───────────────────────────────────────────────
+        group_common = QGroupBox("Параметры")
+        form_c = QFormLayout(group_common)
+
+        self.spin_freq = QDoubleSpinBox()
+        self.spin_freq.setRange(0.1, 100.0)
+        self.spin_freq.setValue(3.0)
+        self.spin_freq.setSuffix(" ГГц")
+        self.spin_freq.setDecimals(2)
+
+        self.combo_elem = QComboBox()
+        self.combo_elem.addItems(["isotropic", "cosine", "dipole"])
+        self.combo_elem.setCurrentText("cosine")
 
         self.spin_points = QSpinBox()
         self.spin_points.setRange(51, 1001)
         self.spin_points.setValue(181)
         self.spin_points.setSingleStep(10)
 
-        form.addRow("N (1D):", self.spin_N)
-        form.addRow("Nx (2D):", self.spin_Nx)
-        form.addRow("Ny (2D):", self.spin_Ny)
-        form.addRow("Частота:", self.spin_freq)
-        form.addRow("Угол θ_x₀:", self.spin_steer_x)
-        form.addRow("Угол θ_y₀:", self.spin_steer_y)
-        form.addRow("Точки θ:", self.spin_points)
+        form_c.addRow("Частота:", self.spin_freq)
+        form_c.addRow("Элемент:", self.combo_elem)
+        form_c.addRow("Точки θ:", self.spin_points)
 
+        # ── Кнопка и статус ───────────────────────────────────────────────
         self.btn_calc = QPushButton("Рассчитать")
         self.btn_calc.clicked.connect(self._on_calculate)
         self.status_label = QLabel("Готов")
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        ctrl_layout.addWidget(group)
+        ctrl_layout.addWidget(group_mode)
+        ctrl_layout.addWidget(self.group_uniform)
+        ctrl_layout.addWidget(self.group_csv)
+        ctrl_layout.addWidget(group_common)
         ctrl_layout.addWidget(self.btn_calc)
         ctrl_layout.addWidget(self.status_label)
 
@@ -251,6 +227,8 @@ class MainWindow(QMainWindow):
         layout.addWidget(splitter)
         self.setCentralWidget(container)
 
+    # ── Вспомогательные ──────────────────────────────────────────────────
+
     def _wrap(self, canvas):
         w = QWidget()
         layout = QVBoxLayout(w)
@@ -258,20 +236,41 @@ class MainWindow(QMainWindow):
         layout.addWidget(canvas)
         return w
 
+    def _on_mode_changed(self, use_csv: bool):
+        self.group_uniform.setVisible(not use_csv)
+        self.group_csv.setVisible(use_csv)
+
+    def _on_browse(self):
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Выбрать CSV-файл", str(Path(__file__).parent),
+            "CSV files (*.csv);;All files (*)",
+        )
+        if path:
+            self._csv_path = path
+            self.lbl_csv.setText(Path(path).name)
+            self.lbl_csv.setStyleSheet("color: black; font-size: 10px;")
+
+    # ── Расчёт ───────────────────────────────────────────────────────────
+
     def _on_calculate(self):
         if self.worker and self.worker.isRunning():
             return
+
+        use_csv = self.chk_csv.isChecked()
+        if use_csv and not self._csv_path:
+            QMessageBox.warning(self, "Нет файла", "Выберите CSV-файл перед расчётом.")
+            return
+
         params = {
-            "N": self.spin_N.value(),
-            "Nx": self.spin_Nx.value(),
-            "Ny": self.spin_Ny.value(),
-            "freq": self.spin_freq.value() * 1e9,
-            "steer_x": self.spin_steer_x.value(),
-            "steer_y": self.spin_steer_y.value(),
-            "n_points": self.spin_points.value(),
+            "freq":         self.spin_freq.value() * 1e9,
+            "elem_pattern": self.combo_elem.currentText(),
+            "n_points":     self.spin_points.value(),
+            "csv_path":     self._csv_path if use_csv else None,
+            "N":            self.spin_N.value(),
+            "steer_x":      self.spin_steer_x.value(),
         }
         self.btn_calc.setEnabled(False)
-        self.status_label.setText("Расчёт...")
+        self.status_label.setText("Расчёт…")
         self.worker = CalcWorker(self.c_lib, params)
         self.worker.finished.connect(self._on_result)
         self.worker.error.connect(self._on_error)
@@ -280,9 +279,6 @@ class MainWindow(QMainWindow):
     def _on_result(self, data):
         logger.info("Rendering plots")
         self._plot_1d(data)
-        self._plot_heatmap(data)
-        self._plot_3d_surface(data)
-        self._plot_3d_balloon(data)
         self.btn_calc.setEnabled(True)
         self.status_label.setText("Готов")
 
@@ -291,13 +287,14 @@ class MainWindow(QMainWindow):
         self.status_label.setText("Ошибка")
         QMessageBox.critical(self, "Ошибка расчёта", msg)
 
+    # ── Графики ──────────────────────────────────────────────────────────
+
     def _plot_1d(self, data):
-        theta = data["theta_1d"]
-        pat = np.clip(20 * np.log10(np.maximum(data["pat_1d"], 1e-10)), -40, None)
         ax = self.canvas_1d.ax
         ax.cla()
-        ax.plot(np.degrees(theta), pat)
-        ax.axhline(-3, color="red", linestyle="--", label="-3 дБ")
+        ax.plot(data["theta_deg"], np.clip(data["pattern_db"], -40, None),
+                label=data["label"])
+        ax.axhline(-3,  color="red",   linestyle="--", label="-3 дБ")
         ax.axhline(-13, color="green", linestyle="--", label="-13 дБ")
         ax.set_xlabel("θ, градус")
         ax.set_ylabel("|F(θ)|, дБ")

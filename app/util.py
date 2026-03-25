@@ -25,9 +25,6 @@ def _initialize_arg_types(library):
 
     library.CalculateNormalizingCoeff.argtypes = [ct.POINTER(complex_t), ct.c_int]
     library.CalculateWaveNumber.argtypes = [ct.c_double, ct.c_int]
-    library.CalculateAntennaArraySize.argtypes = [ct.c_uint64, ct.c_uint64]
-    library.CalculateDeltaX.argtypes = [ct.c_double, ct.c_double]
-    library.CalculateDeltaY.argtypes = [ct.c_double, ct.c_double]
     library.DegreesToRadians.argtypes = [ct.c_double]
     library.RadiansToDegrees.argtypes = [ct.c_double]
     library.Calculate1DAntennaArray.argtypes = [
@@ -52,9 +49,6 @@ def _initialize_res_types(library):
 
     library.CalculateNormalizingCoeff.restype = ct.c_double
     library.CalculateWaveNumber.restype = ct.c_double
-    library.CalculateAntennaArraySize.restype = ct.c_uint64
-    library.CalculateDeltaX.restype = ct.c_double
-    library.CalculateDeltaY.restype = ct.c_double
     library.DegreesToRadians.restype = ct.c_double
     library.RadiansToDegrees.restype = ct.c_double
     library.Calculate1DAntennaArray.restype = ct.POINTER(complex_t)

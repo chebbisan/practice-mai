@@ -21,19 +21,6 @@ double CalculateWaveNumber(double num, int phys) {
     throw std::runtime_error("Wrong argument");
 }
 
-// Расчет количества ячеек в решетке
-uint64_t CalculateAntennaArraySize(uint64_t Nx, uint64_t Ny) { return Nx * Ny; }
-
-// Расчет шага по оси X
-double CalculateDeltaX(double wave_length, double theta_x) {
-    return wave_length / (1. + sin(theta_x));
-}
-
-// Расчет шага по оси Y
-double CalculateDeltaY(double wave_length, double theta_y) {
-    return wave_length / (1. + sin(theta_y));
-}
-
 // Перевод углов в радианы
 double DegreesToRadians(double degrees) { return degrees * (M_PI / 180); }
 
