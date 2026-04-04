@@ -35,6 +35,35 @@ def _initialize_arg_types(library):
         ct.POINTER(ct.c_double),
         ct.c_double,
     ]
+    library.Calculate2DAntennaArray.argtypes = [
+        ct.c_int,  # N
+        ct.c_int,  # n_theta
+        ct.c_int,  # n_phi
+        ct.POINTER(complex_t),  # f_arr
+        ct.POINTER(ct.c_double),  # x_arr
+        ct.POINTER(ct.c_double),  # y_arr
+        ct.POINTER(ct.c_double),  # theta_arr
+        ct.POINTER(ct.c_double),  # phi_arr
+        ct.c_double,  # wave_num
+    ]
+    library.ComplexArrayMagnitude.argtypes = [
+        ct.POINTER(complex_t),
+        ct.POINTER(ct.c_double),
+        ct.c_int,
+    ]
+    library.NormalizeArray.argtypes = [ct.POINTER(ct.c_double), ct.c_int]
+    library.CalculateDirectivity1D.argtypes = [
+        ct.POINTER(ct.c_double),
+        ct.POINTER(ct.c_double),
+        ct.c_int,
+    ]
+    library.CalculateDirectivity2D.argtypes = [
+        ct.POINTER(ct.c_double),
+        ct.POINTER(ct.c_double),
+        ct.POINTER(ct.c_double),
+        ct.c_int,
+        ct.c_int,
+    ]
 
 
 # Инициализация возвращаемых типов C-функций
@@ -52,6 +81,11 @@ def _initialize_res_types(library):
     library.DegreesToRadians.restype = ct.c_double
     library.RadiansToDegrees.restype = ct.c_double
     library.Calculate1DAntennaArray.restype = ct.POINTER(complex_t)
+    library.Calculate2DAntennaArray.restype = ct.POINTER(complex_t)
+    library.ComplexArrayMagnitude.restype = None
+    library.NormalizeArray.restype = ct.c_double
+    library.CalculateDirectivity1D.restype = ct.c_double
+    library.CalculateDirectivity2D.restype = ct.c_double
 
 
 # Инициализация C-библиотеки

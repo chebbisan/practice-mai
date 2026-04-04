@@ -1,7 +1,7 @@
 # Antenna array configuration
 # eq. 12.7: 2Θ₀.₇ ≈ 51°·λ/(N·d)
 
-# ── 1D array (main.py) ───────────────────────────────────────────────────────
+# ── 1D array (calc_1d.py) ────────────────────────────────────────────────────
 array_1d:
   N: 16           # number of elements
   freq_hz: 3.0e+9  # carrier frequency, Hz
@@ -9,5 +9,14 @@ array_1d:
   steer_deg: 30   # max steering angle for spacing formula (used when d=null)
   n_theta: 1001   # angular resolution
   element_pattern: cosine  # element amplitude pattern: isotropic | cosine | dipole
-  csv_file: null  # path to CSV with arbitrary layout (null → use uniform config above)
+  csv_file: input/array_example.csv  # path to CSV with arbitrary layout (null → use uniform config above)
                   # CSV columns: x_m, amplitude_db  (header row optional)
+
+# ── 2D array (calc_2d.py) ────────────────────────────────────────────────────
+# Ref: Габриэльян и др., ЖРЭ №12, 2012 — эквивалентный прямоуг. раскрыв 40×12, d=0.5λ
+array_2d:
+  freq_hz: 3.0e+9
+  n_theta: 401     # angular resolution along theta
+  n_phi: 401       # angular resolution along phi
+  element_pattern: isotropic
+  csv_file: input/array_2d_example.csv  # CSV columns: x_m, y_m, amplitude_db

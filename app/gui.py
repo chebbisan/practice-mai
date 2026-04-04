@@ -32,7 +32,7 @@ from PyQt6.QtWidgets import (
 )
 
 from util import initialize_library, calculate_delta_x
-from main import compute_pattern, load_array_from_csv
+from calc_1d import compute_pattern, load_array_from_csv
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -79,8 +79,10 @@ class CalcWorker(QThread):
                 logger.info("Uniform mode: N=%d, freq=%.2e", N, p["freq"])
 
             result = compute_pattern(
-                x_arr, amplitudes,
-                p["freq"], p["n_points"],
+                x_arr,
+                amplitudes,
+                p["freq"],
+                p["n_points"],
                 p["elem_pattern"],
                 self.c_lib,
             )
@@ -242,7 +244,9 @@ class MainWindow(QMainWindow):
 
     def _on_browse(self):
         path, _ = QFileDialog.getOpenFileName(
-            self, "Выбрать CSV-файл", str(Path(__file__).parent),
+            self,
+            "Выбрать CSV-файл",
+            str(Path(__file__).parent),
             "CSV files (*.csv);;All files (*)",
         )
         if path:
@@ -262,12 +266,12 @@ class MainWindow(QMainWindow):
             return
 
         params = {
-            "freq":         self.spin_freq.value() * 1e9,
+            "freq": self.spin_freq.value() * 1e9,
             "elem_pattern": self.combo_elem.currentText(),
-            "n_points":     self.spin_points.value(),
-            "csv_path":     self._csv_path if use_csv else None,
-            "N":            self.spin_N.value(),
-            "steer_x":      self.spin_steer_x.value(),
+            "n_points": self.spin_points.value(),
+            "csv_path": self._csv_path if use_csv else None,
+            "N": self.spin_N.value(),
+            "steer_x": self.spin_steer_x.value(),
         }
         self.btn_calc.setEnabled(False)
         self.status_label.setText("Расчёт…")
@@ -292,9 +296,12 @@ class MainWindow(QMainWindow):
     def _plot_1d(self, data):
         ax = self.canvas_1d.ax
         ax.cla()
-        ax.plot(data["theta_deg"], np.clip(data["pattern_db"], -40, None),
-                label=data["label"])
-        ax.axhline(-3,  color="red",   linestyle="--", label="-3 дБ")
+        ax.plot(
+            data["theta_deg"],
+            np.clip(data["pattern_db"], -40, None),
+            label=data["label"],
+        )
+        ax.axhline(-3, color="red", linestyle="--", label="-3 дБ")
         ax.axhline(-13, color="green", linestyle="--", label="-13 дБ")
         ax.set_xlabel("θ, градус")
         ax.set_ylabel("|F(θ)|, дБ")
@@ -312,9 +319,16 @@ class MainWindow(QMainWindow):
         ax.cla()
         im = ax.imshow(
             log_p,
-            extent=[np.degrees(theta_y[0]), np.degrees(theta_y[-1]),
-                    np.degrees(theta_x[-1]), np.degrees(theta_x[0])],
-            aspect="auto", cmap="jet", vmin=-40, vmax=0,
+            extent=[
+                np.degrees(theta_y[0]),
+                np.degrees(theta_y[-1]),
+                np.degrees(theta_x[-1]),
+                np.degrees(theta_x[0]),
+            ],
+            aspect="auto",
+            cmap="jet",
+            vmin=-40,
+            vmax=0,
         )
         if not hasattr(self, "_cbar_heatmap"):
             self._cbar_heatmap = self.canvas_heatmap.fig.colorbar(im, ax=ax)
@@ -363,6 +377,7 @@ class MainWindow(QMainWindow):
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
+
 
 def main():
     logger.info("Loading library: %s", LIB_PATH)

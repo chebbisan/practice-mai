@@ -1,8 +1,8 @@
 """
-Benchmark: C library vs pure-Python implementation of Calculate1DAntennaArray.
+Benchmark: C library vs pure-Python for individual operations.
 
 Run with:
-    python -m pytest tests/test_benchmark.py -v --benchmark-compare
+    python -m pytest tests/test_benchmark.py -v
 """
 
 import ctypes as ct
@@ -55,6 +55,11 @@ def c_arrays():
     )
 
 
+# ---------------------------------------------------------------------------
+# 1D Array Factor: C++ vs Python
+# ---------------------------------------------------------------------------
+
+
 def bench_c_lib(lib, c_arrays):
     c_f, c_x, c_theta = c_arrays
     result = lib.Calculate1DAntennaArray(
@@ -78,3 +83,104 @@ def test_benchmark_c_lib(benchmark, lib, c_arrays):
 
 def test_benchmark_python(benchmark):
     benchmark(bench_python)
+
+
+# ---------------------------------------------------------------------------
+# Magnitude extraction: Python loop vs C++
+# ---------------------------------------------------------------------------
+
+N_MAG = 64
+N_THETA_MAG = 10001
+_WAVE_NUM_MAG = 2 * math.pi / WAVE_LENGTH
+_D_MAG = WAVE_LENGTH / 2
+_X_MAG = np.array([(i - (N_MAG - 1) / 2) * _D_MAG for i in range(N_MAG)])
+_THETA_MAG = np.linspace(-math.pi / 2, math.pi / 2, N_THETA_MAG)
+_F_MAG = [complex_t(1.0, 0.0)] * N_MAG
+
+
+@pytest.fixture(scope="module")
+def raw_complex_1d(lib):
+    c_f = list_to_c_complex_array(_F_MAG)
+    c_x = list_to_c_double_array(_X_MAG)
+    c_theta = list_to_c_double_array(_THETA_MAG)
+    raw = lib.Calculate1DAntennaArray(
+        ct.c_int(N_MAG),
+        ct.c_int(N_THETA_MAG),
+        c_f,
+        c_x,
+        c_theta,
+        ct.c_double(_WAVE_NUM_MAG),
+    )
+    yield raw
+    lib.FreeComplexArr(raw)
+
+
+def test_benchmark_magnitude_python_loop(benchmark, raw_complex_1d):
+    benchmark(
+        lambda: np.array(
+            [
+                abs(complex(raw_complex_1d[i].real, raw_complex_1d[i].imag))
+                for i in range(N_THETA_MAG)
+            ]
+        )
+    )
+
+
+def test_benchmark_magnitude_cpp(benchmark, lib, raw_complex_1d):
+    def _run():
+        c_out = (ct.c_double * N_THETA_MAG)()
+        lib.ComplexArrayMagnitude(raw_complex_1d, c_out, ct.c_int(N_THETA_MAG))
+        return np.ctypeslib.as_array(c_out)
+
+    benchmark(_run)
+
+
+# ---------------------------------------------------------------------------
+# Normalization: NumPy vs C++
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def af_array(lib, raw_complex_1d):
+    c_out = (ct.c_double * N_THETA_MAG)()
+    lib.ComplexArrayMagnitude(raw_complex_1d, c_out, ct.c_int(N_THETA_MAG))
+    return np.ctypeslib.as_array(c_out).copy()
+
+
+def test_benchmark_normalize_numpy(benchmark, af_array):
+    benchmark(lambda: af_array.copy() / af_array.max())
+
+
+def test_benchmark_normalize_cpp(benchmark, lib, af_array):
+    def _run():
+        c_arr = (ct.c_double * len(af_array))(*af_array)
+        lib.NormalizeArray(c_arr, ct.c_int(len(af_array)))
+
+    benchmark(_run)
+
+
+# ---------------------------------------------------------------------------
+# Directivity 1D: NumPy vs C++
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def normalized_pattern(af_array):
+    return af_array / af_array.max()
+
+
+def test_benchmark_directivity_numpy(benchmark, normalized_pattern):
+    benchmark(
+        lambda: (
+            2.0 / np.trapezoid(normalized_pattern**2 * np.cos(_THETA_MAG), _THETA_MAG)
+        )
+    )
+
+
+def test_benchmark_directivity_cpp(benchmark, lib, normalized_pattern):
+    def _run():
+        c_pat = (ct.c_double * len(normalized_pattern))(*normalized_pattern)
+        c_theta = (ct.c_double * len(_THETA_MAG))(*_THETA_MAG)
+        return lib.CalculateDirectivity1D(c_pat, c_theta, ct.c_int(len(_THETA_MAG)))
+
+    benchmark(_run)

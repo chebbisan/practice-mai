@@ -6,4 +6,4 @@ venv/
 .claude/
 .benchmarks/
 CLAUDE.md
-stuff.pdf
+docs/
