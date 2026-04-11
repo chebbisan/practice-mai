@@ -1,163 +1,126 @@
-# Практика 3 курс
+# Расчёт и анализ направленных свойств ФАР
 
-Проект вычисляет диаграммы направленности одномерных и двумерных антенных решёток.
-Ядро написано на C++, Python загружает скомпилированную библиотеку через `ctypes`.
+Программный комплекс для расчёта диаграмм направленности (ДН), коэффициента направленного действия (КНД) и анализа параметров главного и боковых лепестков фазированных антенных решёток произвольной конфигурации: линейных (1D), плоских (2D) и пространственных (3D).
+
+Расчёт ДН выполняется на NumPy (векторизованные операции, BLAS/SIMD). C++ библиотека сохранена для бенчмарков.
 
 ## Требования
 
-- CMake 3.28+
-- C++ компилятор (gcc / clang)
 - Python 3.9+
+- CMake 3.28+ и C++ компилятор (только для бенчмарков)
+
+## Быстрый старт
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+
+mkdir build && cd build && cmake .. && make && cd ..
+
+./run.sh 1d      # 1D диаграмма направленности
+./run.sh 2d      # 2D диаграмма (тепловая карта + срезы)
+./run.sh 3d      # 3D пространственная решётка
+./run.sh app     # PyQt6 GUI
+./run.sh bench   # бенчмарки (Python vs NumPy vs C++)
+./run.sh test    # тесты (108 тестов)
+```
 
 ## Структура проекта
 
 ```
-├── lib/                    # C++ ядро
-│   ├── antenna_array.cpp/hpp   # расчёт диаграмм, волновое число, шаги
+├── lib/                        # C++ ядро (для бенчмарков)
+│   ├── antenna_array.cpp/hpp   # расчёт ДН 1D/2D/3D, КНД, полные пайплайны
 │   ├── complex.cpp/hpp         # структура complex_t
 │   └── sum.cpp/hpp             # вспомогательные суммы
-├── src/main.cpp            # standalone C++ исполняемый файл
+├── src/main.cpp                # standalone C++ исполняемый файл
 ├── app/
-│   ├── complex.py          # зеркало C-структуры complex_t
-│   ├── util.py             # загрузка библиотеки, конвертеры, Python-реализации
-│   ├── main.py             # скрипт: 1D диаграмма + график
-│   ├── main2d.py           # скрипт: 2D диаграмма + тепловая карта + 3D графики
-│   ├── app.py              # PyQt6 GUI
-│   └── config.yaml         # параметры решёток (N, Nx/Ny, freq, d, n_theta)
+│   ├── common.py               # общие утилиты: константы, загрузка CSV/конфига, ДН элемента
+│   ├── analysis.py             # анализ ДН: ширина луча, УБЛ, симметрия, эллиптичность
+│   ├── calc_1d.py              # 1D: compute_pattern(), экспорт, визуализация
+│   ├── calc_2d.py              # 2D/3D: compute_pattern_2d(), экспорт, визуализация
+│   ├── calc_3d.py              # 3D: обёртка над compute_pattern_2d(z_arr=...)
+│   ├── plot_2d.py              # полярная тепловая карта
+│   ├── gui.py                  # PyQt6 GUI
+│   ├── util.py                 # загрузка C-библиотеки, ctypes-обёртки
+│   ├── complex.py              # ctypes-зеркало complex_t
+│   ├── config.yaml             # параметры решёток
+│   ├── input/                  # входные CSV (координаты + амплитуды)
+│   └── output/                 # экспортированные ДН (CST-совместимый формат)
 ├── tests/
-│   ├── conftest.py
-│   ├── test_antenna_array.py   # 30 unit-тестов
-│   └── test_benchmark.py       # бенчмарк C vs Python
-├── notebooks/
-│   ├── antenna_array.ipynb # интерактивная визуализация
-│   └── benchmark.ipynb     # сравнение производительности
+│   ├── test_antenna_array.py   # 76 unit-тестов + cross-dimensional
+│   ├── test_analysis.py        # 32 теста анализа ДН
+│   ├── test_benchmark.py       # бенчмарки отдельных операций
+│   ├── test_benchmark_1d.py    # полный пайплайн 1D (4 реализации)
+│   ├── test_benchmark_2d.py    # полный пайплайн 2D (4 реализации)
+│   └── test_benchmark_3d.py    # полный пайплайн 3D (4 реализации)
 ├── docs/
-│   └── stuff.pdf           # справочные материалы
-├── run.sh                  # скрипт сборки + запуска (1d|2d|app|nb|bench|test)
+│   ├── chapter1.md             # Глава 1: расчёт ДН и КНД ФАР
+│   ├── chapter2.md             # Глава 2: инструменты анализа направленных свойств
+│   ├── stuff.pdf               # учебное пособие (антенные решётки)
+│   └── text.pdf                # статья Габриэльян и др., ЖРЭ 2012
+├── run.sh                      # сборка + запуск
 └── requirements.txt
 ```
 
----
-
-## Сборка C++ библиотеки
-
-```bash
-mkdir build && cd build
-cmake ..
-make
-```
-
-Создаёт:
-- `build/Practice` — standalone исполняемый файл
-- `build/libAntennaArray.so` / `.dylib` (macOS) — библиотека для Python
-
----
-
-## Виртуальное окружение
-
-```bash
-python -m venv .venv
-source .venv/bin/activate        # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-```
-
-Деактивировать:
-
-```bash
-deactivate
-```
-
----
-
-## Запуск
-
-### Универсальный скрипт run.sh
-
-`run.sh` автоматически собирает проект (если нужно) и запускает нужный режим одной командой:
-
-```bash
-./run.sh 1d      # 1D диаграмма направленности
-./run.sh 2d      # 2D диаграмма (тепловая карта + 3D)
-./run.sh app     # PyQt6 GUI
-./run.sh nb      # Jupyter notebook
-./run.sh bench   # бенчмарк
-./run.sh test    # тесты
-```
-
-### Конфигурация (config.yaml)
-
-Параметры решёток задаются в `app/config.yaml`:
+## Конфигурация (config.yaml)
 
 ```yaml
 array_1d:
-  N: 16           # число элементов
-  freq_hz: 3.0e+9 # несущая частота, Гц
-  d: null         # шаг (null → λ/(1+sin(steer_deg)))
-  steer_deg: 30   # максимальный угол сканирования (при d=null)
-  n_theta: 1001   # угловое разрешение
+  N: 16              # число элементов
+  freq_hz: 3.0e+9    # частота, Гц
+  d: null             # шаг (null → λ/(1+sin(steer_deg)))
+  steer_deg: 30       # угол сканирования
+  n_theta: 1001       # угловое разрешение
+  element_pattern: cosine   # isotropic | cosine | dipole
+  csv_file: input/array_example.csv
 
 array_2d:
-  Nx: 8           # элементов по x
-  Ny: 32          # элементов по y
   freq_hz: 3.0e+9
-  d_x: null       # шаг по x (null → λ/2)
-  d_y: null       # шаг по y (null → λ/2)
-  n_theta: 361    # точек на ось
+  n_theta: 401
+  n_phi: 401
+  element_pattern: isotropic
+  csv_file: input/array_2d_example.csv
+
+array_3d:
+  freq_hz: 3.0e+9
+  n_theta: 401
+  n_phi: 401
+  element_pattern: isotropic
+  csv_file: input/array_3d_example.csv
 ```
 
-### GUI (PyQt6)
+### CSV входные форматы
 
-```bash
-cd app && python app.py
-```
+- 1D: `x_m, amplitude_db` (2 колонки)
+- 2D: `x_m, y_m, amplitude_db` (3 колонки)
+- 3D: `x_m, y_m, z_m, amplitude_db` (4 колонки)
 
-Параметры в левой панели: N элементов (1D), Nx/Ny (2D), частота, углы наведения θ_x₀/θ_y₀, количество точек θ.
-Результат отображается в 4 вкладках: **1D**, **2D тепловая карта**, **3D поверхность**, **3D шар**.
+Формат определяется автоматически по числу колонок.
 
-### Скрипты
+## Анализ ДН (analysis.py)
 
-```bash
-# 1D диаграмма направленности
-cd app && python main.py
+Модуль автоматически определяет параметры главного лепестка:
+- ширина луча по -3 дБ и -10 дБ (линейная интерполяция)
+- сектор по первым нулям, пространственный телесный угол
+- симметрия левой/правой полуширины, коэффициент эллиптичности
+- УБЛ: первого, максимальный, средний (по всем боковым лепесткам)
 
-# 2D диаграмма (тепловая карта + два 3D графика)
-cd app && python main2d.py
-```
-
-### Jupyter notebooks
-
-```bash
-jupyter notebook notebooks/antenna_array.ipynb   # визуализация
-jupyter notebook notebooks/benchmark.ipynb       # сравнение производительности
-```
-
----
+Работает с данными в памяти и экспортированными CSV.
 
 ## Тесты
 
-Требуется собранный проект и активированное окружение.
-
 ```bash
-python -m pytest tests/ -v
+python -m pytest tests/ -v                           # все тесты (108)
+python -m pytest tests/test_antenna_array.py -v      # 76 unit-тестов
+python -m pytest tests/test_analysis.py -v           # 32 теста анализа
+python -m pytest tests/test_benchmark_1d.py tests/test_benchmark_2d.py tests/test_benchmark_3d.py -v  # бенчмарки
 ```
 
-Тесты C-библиотеки автоматически пропускаются, если `.so` / `.dylib` не собран.
-
----
-
-## Benchmark
-
-Сравнивает скорость `Calculate1DAntennaArray` через C-библиотеку и чистый Python.
+## Линтинг
 
 ```bash
-python -m pytest tests/test_benchmark.py -v
+ruff check --ignore F403,F405 .
+ruff format .
+clang-format -i lib/*.cpp lib/*.hpp src/*.cpp
 ```
-
-Сохранить результаты и сравнить с предыдущим запуском:
-
-```bash
-python -m pytest tests/test_benchmark.py --benchmark-save=baseline
-python -m pytest tests/test_benchmark.py --benchmark-compare=baseline
-```
-
-Интерактивная версия: `notebooks/benchmark.ipynb`
