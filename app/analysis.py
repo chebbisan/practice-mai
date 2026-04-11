@@ -151,6 +151,21 @@ def analyze_cut(theta_deg: np.ndarray, pattern_db: np.ndarray) -> dict:
     else:
         sector_deg = None
 
+    # Симметрия относительно пика: левая/правая полуширина
+    half_left_3 = (peak_deg - left_3) if left_3 is not None else None
+    half_right_3 = (right_3 - peak_deg) if right_3 is not None else None
+    if half_left_3 is not None and half_right_3 is not None and half_right_3 > 0:
+        symmetry_3db = half_left_3 / half_right_3
+    else:
+        symmetry_3db = None
+
+    half_left_null = (peak_deg - null_left_deg) if null_left_deg is not None else None
+    half_right_null = (null_right_deg - peak_deg) if null_right_deg is not None else None
+    if half_left_null is not None and half_right_null is not None and half_right_null > 0:
+        symmetry_null = half_left_null / half_right_null
+    else:
+        symmetry_null = None
+
     return {
         "peak_deg": peak_deg,
         "beamwidth_3db": bw_3,
@@ -161,6 +176,8 @@ def analyze_cut(theta_deg: np.ndarray, pattern_db: np.ndarray) -> dict:
         "first_sll_db": first_sll_db,
         "first_sll_left_db": sll_left_db,
         "first_sll_right_db": sll_right_db,
+        "symmetry_3db": symmetry_3db,
+        "symmetry_null": symmetry_null,
     }
 
 
@@ -215,11 +232,19 @@ def analyze_pattern_2d(result: dict) -> dict:
     else:
         beam_solid_angle_null_sr = None
 
+    # Коэффициент эллиптичности: отношение ширины луча в двух плоскостях
+    # ellipticity = 1.0 для круглого (квадратная решётка), >1 для вытянутого
+    if bw_xz is not None and bw_yz is not None and bw_yz > 0:
+        ellipticity = max(bw_xz, bw_yz) / min(bw_xz, bw_yz)
+    else:
+        ellipticity = None
+
     return {
         "cut_xz": cut_xz,
         "cut_yz": cut_yz,
         "beam_solid_angle_3db_sr": beam_solid_angle_3db_sr,
         "beam_solid_angle_null_sr": beam_solid_angle_null_sr,
+        "ellipticity": ellipticity,
         "D0": result.get("D0"),
         "D0_db": result.get("D0_db"),
     }
@@ -320,6 +345,12 @@ def format_analysis(analysis: dict) -> str:
                 lines.append(f"    Первые нули: {', '.join(nulls)}")
             if cut["first_sll_db"] is not None:
                 lines.append(f"    УБЛ: {cut['first_sll_db']:.2f} дБ")
+            if cut["symmetry_3db"] is not None:
+                lines.append(f"    Симметрия (−3 дБ):    {cut['symmetry_3db']:.3f}")
+            if cut["symmetry_null"] is not None:
+                lines.append(f"    Симметрия (нули):     {cut['symmetry_null']:.3f}")
+        if analysis.get("ellipticity") is not None:
+            lines.append(f"  Коэффициент эллиптичности: {analysis['ellipticity']:.3f}")
         if analysis.get("beam_solid_angle_3db_sr") is not None:
             lines.append(
                 f"  Пространственный сектор (−3 дБ):  {analysis['beam_solid_angle_3db_sr']:.4f} ср"
@@ -348,5 +379,9 @@ def format_analysis(analysis: dict) -> str:
             lines.append(f"  Первые нули: {', '.join(nulls)}")
         if analysis["first_sll_db"] is not None:
             lines.append(f"  УБЛ: {analysis['first_sll_db']:.2f} дБ")
+        if analysis.get("symmetry_3db") is not None:
+            lines.append(f"  Симметрия (−3 дБ):    {analysis['symmetry_3db']:.3f}")
+        if analysis.get("symmetry_null") is not None:
+            lines.append(f"  Симметрия (нули):     {analysis['symmetry_null']:.3f}")
 
     return "\n".join(lines)

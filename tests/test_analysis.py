@@ -155,6 +155,13 @@ class TestAnalyzeCut1D:
         a = analyze_cut(result["theta_deg"], result["pattern_db"])
         assert a["sector_deg"] > a["beamwidth_3db"]
 
+    def test_symmetry_broadside(self):
+        """Равномерная решётка broadside: симметрия = 1.0."""
+        result = _make_1d_pattern(16)
+        a = analyze_cut(result["theta_deg"], result["pattern_db"])
+        assert a["symmetry_3db"] == pytest.approx(1.0, abs=0.01)
+        assert a["symmetry_null"] == pytest.approx(1.0, abs=0.01)
+
     def test_two_element_no_sidelobe(self):
         """N=2: AF = cos(π/2·sinθ) — нет боковых лепестков."""
         result = _make_1d_pattern(2, n_theta=10001)
@@ -235,6 +242,26 @@ class TestAnalyzePattern2D:
         # Ω ≈ bw_xz_rad * bw_yz_rad
         expected = math.radians(bw_xz) * math.radians(bw_yz)
         assert a["beam_solid_angle_3db_sr"] == pytest.approx(expected, rel=0.01)
+
+    def test_ellipticity_square(self):
+        """8×8: эллиптичность ≈ 1.0 (круглый луч)."""
+        result = _make_2d_pattern(8, 8)
+        a = analyze_pattern_2d(result)
+        assert a["ellipticity"] == pytest.approx(1.0, abs=0.05)
+
+    def test_ellipticity_rectangular(self):
+        """40×12: эллиптичность > 1 (вытянутый луч)."""
+        result = _make_2d_pattern(40, 12, n_theta=401, n_phi=401)
+        a = analyze_pattern_2d(result)
+        # 40/12 ≈ 3.3 — луч вытянут в плоскости с меньшим числом элементов
+        assert a["ellipticity"] > 2.0
+
+    def test_symmetry_2d_cuts(self):
+        """Квадратная решётка broadside: оба среза симметричны."""
+        result = _make_2d_pattern(8, 8)
+        a = analyze_pattern_2d(result)
+        assert a["cut_xz"]["symmetry_3db"] == pytest.approx(1.0, abs=0.02)
+        assert a["cut_yz"]["symmetry_3db"] == pytest.approx(1.0, abs=0.02)
 
 
 # ---------------------------------------------------------------------------
