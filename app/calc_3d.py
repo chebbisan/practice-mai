@@ -1,6 +1,4 @@
-import ctypes as ct
 import logging
-import platform
 from pathlib import Path
 
 import yaml
@@ -8,12 +6,6 @@ import yaml
 import matplotlib.pyplot as plt
 import numpy as np
 
-from complex import complex_t
-from util import (
-    initialize_library,
-    list_to_c_double_array,
-    list_to_c_complex_array,
-)
 from calc_1d import load_array_from_csv, element_pattern
 from plot_2d import plot_heatmap
 
@@ -26,9 +18,6 @@ logger = logging.getLogger(__name__)
 
 SPEED_OF_LIGHT = 3 * 10**8
 
-ROOT = Path(__file__).parent.parent
-_LIB_SUFFIX = {"Darwin": ".dylib", "Windows": ".dll"}.get(platform.system(), ".so")
-LIB_PATH = ROOT / "build" / f"libAntennaArray{_LIB_SUFFIX}"
 CONFIG_PATH = Path(__file__).parent / "config.yaml"
 
 
@@ -41,7 +30,6 @@ def compute_pattern_3d(
     n_theta: int,
     n_phi: int,
     elem_pattern_name: str,
-    c_lib,
 ) -> dict:
     N = len(x_arr)
     wave_length = SPEED_OF_LIGHT / freq_hz
@@ -56,32 +44,16 @@ def compute_pattern_3d(
     theta = np.linspace(-np.pi / 2, np.pi / 2, n_theta)
     phi = np.linspace(-np.pi / 2, np.pi / 2, n_phi)
 
-    f_arr = [complex_t(float(a), 0.0) for a in amplitudes]
-    c_f = list_to_c_complex_array(f_arr)
-    c_x = list_to_c_double_array(x_arr)
-    c_y = list_to_c_double_array(y_arr)
-    c_z = list_to_c_double_array(z_arr)
-    c_theta = list_to_c_double_array(theta)
-    c_phi = list_to_c_double_array(phi)
-
-    raw = c_lib.Calculate3DAntennaArray(
-        ct.c_int(N),
-        ct.c_int(n_theta),
-        ct.c_int(n_phi),
-        c_f,
-        c_x,
-        c_y,
-        c_z,
-        c_theta,
-        c_phi,
-        ct.c_double(wave_num),
-    )
-
-    total = n_theta * n_phi
-    af_complex = np.array(
-        [complex(raw[i].real, raw[i].imag) for i in range(total)]
-    ).reshape(n_theta, n_phi)
-    c_lib.FreeComplexArr(raw)
+    # NumPy vectorized: AF(θ,φ) = (1/N) Σ aₙ exp(-jk(xₙsinθcosφ + yₙsinθsinφ + zₙcosθ))
+    st_cp = np.outer(np.sin(theta), np.cos(phi))  # [n_theta, n_phi]
+    st_sp = np.outer(np.sin(theta), np.sin(phi))  # [n_theta, n_phi]
+    cos_theta_2d = np.cos(theta)[:, np.newaxis] * np.ones((1, n_phi))  # [n_theta, n_phi]
+    af_complex = np.zeros((n_theta, n_phi), dtype=complex)
+    for n in range(N):
+        af_complex += amplitudes[n] * np.exp(
+            -1j * wave_num * (x_arr[n] * st_cp + y_arr[n] * st_sp + z_arr[n] * cos_theta_2d)
+        )
+    af_complex /= N
 
     af_2d = np.abs(af_complex)
     phase_2d = np.degrees(np.angle(af_complex))
@@ -231,8 +203,6 @@ def main():
 
     logger.info("Loaded %d elements from %s", len(x_arr), csv_path)
 
-    c_lib = initialize_library(str(LIB_PATH))
-
     result = compute_pattern_3d(
         x_arr,
         y_arr,
@@ -242,7 +212,6 @@ def main():
         n_theta,
         n_phi,
         elem_pattern_name,
-        c_lib,
     )
 
     logger.info(
