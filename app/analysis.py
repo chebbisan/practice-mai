@@ -145,10 +145,17 @@ def analyze_cut(theta_deg: np.ndarray, pattern_db: np.ndarray) -> dict:
     sll_values = [v for v in (sll_left_db, sll_right_db) if v is not None]
     first_sll_db = max(sll_values) if sll_values else None
 
+    # Сектор главного лепестка (ширина по нулям)
+    if null_left_deg is not None and null_right_deg is not None:
+        sector_deg = null_right_deg - null_left_deg
+    else:
+        sector_deg = None
+
     return {
         "peak_deg": peak_deg,
         "beamwidth_3db": bw_3,
         "beamwidth_10db": bw_10,
+        "sector_deg": sector_deg,
         "first_null_left_deg": null_left_deg,
         "first_null_right_deg": null_right_deg,
         "first_sll_db": first_sll_db,
@@ -191,9 +198,28 @@ def analyze_pattern_2d(result: dict) -> dict:
     cut_xz = analyze_cut(theta_deg, pattern_db[:, i_phi_0])
     cut_yz = analyze_cut(theta_deg, pattern_db[:, i_phi_90])
 
+    # Пространственный сектор главного лепестка
+    # По −3 дБ: Ω₃ ≈ Δθ_xz · Δθ_yz (стерадианы, для малых углов)
+    bw_xz = cut_xz["beamwidth_3db"]
+    bw_yz = cut_yz["beamwidth_3db"]
+    if bw_xz is not None and bw_yz is not None:
+        beam_solid_angle_3db_sr = np.radians(bw_xz) * np.radians(bw_yz)
+    else:
+        beam_solid_angle_3db_sr = None
+
+    # По нулям: Ω₀ ≈ sector_xz · sector_yz
+    sec_xz = cut_xz["sector_deg"]
+    sec_yz = cut_yz["sector_deg"]
+    if sec_xz is not None and sec_yz is not None:
+        beam_solid_angle_null_sr = np.radians(sec_xz) * np.radians(sec_yz)
+    else:
+        beam_solid_angle_null_sr = None
+
     return {
         "cut_xz": cut_xz,
         "cut_yz": cut_yz,
+        "beam_solid_angle_3db_sr": beam_solid_angle_3db_sr,
+        "beam_solid_angle_null_sr": beam_solid_angle_null_sr,
         "D0": result.get("D0"),
         "D0_db": result.get("D0_db"),
     }
@@ -283,6 +309,8 @@ def format_analysis(analysis: dict) -> str:
                 lines.append(f"    Ширина луча (−3 дБ):  {cut['beamwidth_3db']:.2f}°")
             if cut["beamwidth_10db"] is not None:
                 lines.append(f"    Ширина луча (−10 дБ): {cut['beamwidth_10db']:.2f}°")
+            if cut["sector_deg"] is not None:
+                lines.append(f"    Сектор по нулям:      {cut['sector_deg']:.2f}°")
             nulls = []
             if cut["first_null_left_deg"] is not None:
                 nulls.append(f"{cut['first_null_left_deg']:.2f}°")
@@ -292,6 +320,14 @@ def format_analysis(analysis: dict) -> str:
                 lines.append(f"    Первые нули: {', '.join(nulls)}")
             if cut["first_sll_db"] is not None:
                 lines.append(f"    УБЛ: {cut['first_sll_db']:.2f} дБ")
+        if analysis.get("beam_solid_angle_3db_sr") is not None:
+            lines.append(
+                f"  Пространственный сектор (−3 дБ):  {analysis['beam_solid_angle_3db_sr']:.4f} ср"
+            )
+        if analysis.get("beam_solid_angle_null_sr") is not None:
+            lines.append(
+                f"  Пространственный сектор (нули):   {analysis['beam_solid_angle_null_sr']:.4f} ср"
+            )
     else:
         # 1D результат
         if analysis.get("D0_db") is not None:
@@ -301,6 +337,8 @@ def format_analysis(analysis: dict) -> str:
             lines.append(f"  Ширина луча (−3 дБ):  {analysis['beamwidth_3db']:.2f}°")
         if analysis["beamwidth_10db"] is not None:
             lines.append(f"  Ширина луча (−10 дБ): {analysis['beamwidth_10db']:.2f}°")
+        if analysis.get("sector_deg") is not None:
+            lines.append(f"  Сектор по нулям:      {analysis['sector_deg']:.2f}°")
         nulls = []
         if analysis["first_null_left_deg"] is not None:
             nulls.append(f"{analysis['first_null_left_deg']:.2f}°")

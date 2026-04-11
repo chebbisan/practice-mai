@@ -142,6 +142,19 @@ class TestAnalyzeCut1D:
         assert a["first_sll_db"] is not None
         assert a["first_sll_db"] == pytest.approx(-13.26, abs=0.5)
 
+    @pytest.mark.parametrize("N", [8, 16])
+    def test_sector_deg(self, N):
+        """Сектор по нулям = 2·arcsin(2/N) для d=λ/2."""
+        result = _make_1d_pattern(N)
+        a = analyze_cut(result["theta_deg"], result["pattern_db"])
+        expected_sector = 2 * math.degrees(math.asin(2.0 / N))
+        assert a["sector_deg"] == pytest.approx(expected_sector, abs=0.6)
+
+    def test_sector_wider_than_beamwidth(self):
+        result = _make_1d_pattern(16)
+        a = analyze_cut(result["theta_deg"], result["pattern_db"])
+        assert a["sector_deg"] > a["beamwidth_3db"]
+
     def test_two_element_no_sidelobe(self):
         """N=2: AF = cos(π/2·sinθ) — нет боковых лепестков."""
         result = _make_1d_pattern(2, n_theta=10001)
@@ -198,6 +211,30 @@ class TestAnalyzePattern2D:
         a = analyze_pattern_2d(result)
         assert a["D0"] is not None
         assert a["D0"] > 1.0
+
+    def test_beam_solid_angle_3db(self):
+        """Пространственный сектор (−3 дБ) для квадратной решётки."""
+        result = _make_2d_pattern(8, 8)
+        a = analyze_pattern_2d(result)
+        omega = a["beam_solid_angle_3db_sr"]
+        assert omega is not None
+        assert omega > 0
+
+    def test_beam_solid_angle_null(self):
+        """Пространственный сектор (по нулям) шире, чем по −3 дБ."""
+        result = _make_2d_pattern(8, 8)
+        a = analyze_pattern_2d(result)
+        assert a["beam_solid_angle_null_sr"] > a["beam_solid_angle_3db_sr"]
+
+    def test_rectangular_solid_angle(self):
+        """40×12: сектор по −3 дБ для прямоугольной решётки — не квадратный."""
+        result = _make_2d_pattern(40, 12, n_theta=401, n_phi=401)
+        a = analyze_pattern_2d(result)
+        bw_xz = a["cut_xz"]["beamwidth_3db"]
+        bw_yz = a["cut_yz"]["beamwidth_3db"]
+        # Ω ≈ bw_xz_rad * bw_yz_rad
+        expected = math.radians(bw_xz) * math.radians(bw_yz)
+        assert a["beam_solid_angle_3db_sr"] == pytest.approx(expected, rel=0.01)
 
 
 # ---------------------------------------------------------------------------
