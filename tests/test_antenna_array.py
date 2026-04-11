@@ -811,6 +811,234 @@ class TestDirectivity3D:
         assert D0 < 100.0, f"D0={D0:.2f} ({D0_db:.2f} dB)"
 
 
+class TestCrossDimensional:
+    """Сравнение ДН между 1D, 2D и 3D при одинаковом расположении элементов.
+
+    Линейная решётка вдоль x (y=0, z=0): 1D, 2D, 3D должны давать
+    одинаковый множитель решётки в срезе φ=0°.
+    Плоская решётка (z=0): 2D и 3D должны давать одинаковую полную ДН.
+    """
+
+    def _setup_linear(self, N=8, n_theta=201, n_phi=201):
+        """Возвращает линейную решётку и параметры расчёта."""
+        lib = _lib()
+        freq = 3e9
+        lam = 3e8 / freq
+        d = lam / 2
+        wave_num = 2 * math.pi / lam
+        L = d * (N - 1)
+        x_arr = np.array([i * d - L / 2 for i in range(N)])
+        return lib, N, x_arr, wave_num, n_theta, n_phi
+
+    def test_1d_vs_2d_linear_array(self):
+        """Линейная решётка вдоль x: срез φ=0° из 2D совпадает с 1D ДН."""
+        lib, N, x_arr, wave_num, n_theta, n_phi = self._setup_linear()
+        y_arr = np.zeros(N)
+        theta = np.linspace(-math.pi / 2, math.pi / 2, n_theta)
+        phi = np.linspace(-math.pi / 2, math.pi / 2, n_phi)
+        f_arr = [complex_t(1.0, 0.0)] * N
+
+        # 1D
+        raw_1d = lib.Calculate1DAntennaArray(
+            ct.c_int(N), ct.c_int(n_theta),
+            list_to_c_complex_array(f_arr),
+            list_to_c_double_array(x_arr),
+            list_to_c_double_array(theta),
+            ct.c_double(wave_num),
+        )
+        af_1d = np.array([abs(complex(raw_1d[i].real, raw_1d[i].imag))
+                          for i in range(n_theta)])
+        lib.FreeComplexArr(raw_1d)
+        af_1d /= af_1d.max()
+
+        # 2D
+        raw_2d = lib.Calculate2DAntennaArray(
+            ct.c_int(N), ct.c_int(n_theta), ct.c_int(n_phi),
+            list_to_c_complex_array(f_arr),
+            list_to_c_double_array(x_arr), list_to_c_double_array(y_arr),
+            list_to_c_double_array(theta), list_to_c_double_array(phi),
+            ct.c_double(wave_num),
+        )
+        af_2d = np.array([abs(complex(raw_2d[i].real, raw_2d[i].imag))
+                          for i in range(n_theta * n_phi)]).reshape(n_theta, n_phi)
+        lib.FreeComplexArr(raw_2d)
+
+        # Срез φ=0°
+        i_phi_0 = np.argmin(np.abs(phi - 0.0))
+        cut_2d = af_2d[:, i_phi_0]
+        cut_2d /= cut_2d.max()
+
+        np.testing.assert_allclose(cut_2d, af_1d, atol=1e-10,
+                                   err_msg="1D AF ≠ 2D срез φ=0° для линейной решётки")
+
+    def test_1d_vs_3d_linear_array(self):
+        """Линейная решётка вдоль x: срез φ=0° из 3D совпадает с 1D ДН."""
+        lib, N, x_arr, wave_num, n_theta, n_phi = self._setup_linear()
+        y_arr = np.zeros(N)
+        z_arr = np.zeros(N)
+        theta = np.linspace(-math.pi / 2, math.pi / 2, n_theta)
+        phi = np.linspace(-math.pi / 2, math.pi / 2, n_phi)
+        f_arr = [complex_t(1.0, 0.0)] * N
+
+        # 1D
+        raw_1d = lib.Calculate1DAntennaArray(
+            ct.c_int(N), ct.c_int(n_theta),
+            list_to_c_complex_array(f_arr),
+            list_to_c_double_array(x_arr),
+            list_to_c_double_array(theta),
+            ct.c_double(wave_num),
+        )
+        af_1d = np.array([abs(complex(raw_1d[i].real, raw_1d[i].imag))
+                          for i in range(n_theta)])
+        lib.FreeComplexArr(raw_1d)
+        af_1d /= af_1d.max()
+
+        # 3D
+        raw_3d = lib.Calculate3DAntennaArray(
+            ct.c_int(N), ct.c_int(n_theta), ct.c_int(n_phi),
+            list_to_c_complex_array(f_arr),
+            list_to_c_double_array(x_arr), list_to_c_double_array(y_arr),
+            list_to_c_double_array(z_arr),
+            list_to_c_double_array(theta), list_to_c_double_array(phi),
+            ct.c_double(wave_num),
+        )
+        af_3d = np.array([abs(complex(raw_3d[i].real, raw_3d[i].imag))
+                          for i in range(n_theta * n_phi)]).reshape(n_theta, n_phi)
+        lib.FreeComplexArr(raw_3d)
+
+        # Срез φ=0°
+        i_phi_0 = np.argmin(np.abs(phi - 0.0))
+        cut_3d = af_3d[:, i_phi_0]
+        cut_3d /= cut_3d.max()
+
+        np.testing.assert_allclose(cut_3d, af_1d, atol=1e-10,
+                                   err_msg="1D AF ≠ 3D срез φ=0° для линейной решётки")
+
+    def test_2d_vs_3d_planar_array(self):
+        """Плоская решётка 4×4 (z=0): полная ДН из 2D и 3D совпадает."""
+        lib = _lib()
+        freq = 3e9
+        lam = 3e8 / freq
+        d = lam / 2
+        wave_num = 2 * math.pi / lam
+        Nx, Ny = 4, 4
+        xs, ys = [], []
+        for ix in range(Nx):
+            for iy in range(Ny):
+                xs.append((ix - (Nx - 1) / 2) * d)
+                ys.append((iy - (Ny - 1) / 2) * d)
+        N = Nx * Ny
+        x_arr = np.array(xs)
+        y_arr = np.array(ys)
+        z_arr = np.zeros(N)
+
+        n_theta, n_phi = 101, 101
+        theta = np.linspace(-math.pi / 2, math.pi / 2, n_theta)
+        phi = np.linspace(-math.pi / 2, math.pi / 2, n_phi)
+        f_arr = [complex_t(1.0, 0.0)] * N
+
+        # 2D
+        raw_2d = lib.Calculate2DAntennaArray(
+            ct.c_int(N), ct.c_int(n_theta), ct.c_int(n_phi),
+            list_to_c_complex_array(f_arr),
+            list_to_c_double_array(x_arr), list_to_c_double_array(y_arr),
+            list_to_c_double_array(theta), list_to_c_double_array(phi),
+            ct.c_double(wave_num),
+        )
+        # 3D
+        raw_3d = lib.Calculate3DAntennaArray(
+            ct.c_int(N), ct.c_int(n_theta), ct.c_int(n_phi),
+            list_to_c_complex_array(f_arr),
+            list_to_c_double_array(x_arr), list_to_c_double_array(y_arr),
+            list_to_c_double_array(z_arr),
+            list_to_c_double_array(theta), list_to_c_double_array(phi),
+            ct.c_double(wave_num),
+        )
+
+        total = n_theta * n_phi
+        af_2d = np.array([abs(complex(raw_2d[i].real, raw_2d[i].imag))
+                          for i in range(total)])
+        af_3d = np.array([abs(complex(raw_3d[i].real, raw_3d[i].imag))
+                          for i in range(total)])
+        lib.FreeComplexArr(raw_2d)
+        lib.FreeComplexArr(raw_3d)
+
+        np.testing.assert_allclose(af_3d, af_2d, atol=1e-12,
+                                   err_msg="2D AF ≠ 3D AF для плоской решётки (z=0)")
+
+    def test_1d_vs_2d_vs_3d_directivity(self):
+        """КНД линейной решётки: 1D D₀ = N, 2D и 3D D₀ согласованы."""
+        lib = _lib()
+        freq = 3e9
+        lam = 3e8 / freq
+        d = lam / 2
+        wave_num = 2 * math.pi / lam
+        N = 8
+        L = d * (N - 1)
+        x_arr = np.array([i * d - L / 2 for i in range(N)])
+        y_arr = np.zeros(N)
+        z_arr = np.zeros(N)
+
+        # 1D КНД (формула 10.41)
+        n_theta_1d = 10001
+        theta_1d = np.linspace(-math.pi / 2, math.pi / 2, n_theta_1d)
+        f_arr = [complex_t(1.0, 0.0)] * N
+        raw_1d = lib.Calculate1DAntennaArray(
+            ct.c_int(N), ct.c_int(n_theta_1d),
+            list_to_c_complex_array(f_arr),
+            list_to_c_double_array(x_arr),
+            list_to_c_double_array(theta_1d),
+            ct.c_double(wave_num),
+        )
+        af_1d = np.array([abs(complex(raw_1d[i].real, raw_1d[i].imag))
+                          for i in range(n_theta_1d)])
+        lib.FreeComplexArr(raw_1d)
+        af_1d /= af_1d.max()
+        D0_1d = 2.0 / np.trapezoid(af_1d**2 * np.cos(theta_1d), theta_1d)
+
+        # 2D КНД
+        n_theta, n_phi = 301, 301
+        theta = np.linspace(-math.pi / 2, math.pi / 2, n_theta)
+        phi = np.linspace(-math.pi / 2, math.pi / 2, n_phi)
+        raw_2d = lib.Calculate2DAntennaArray(
+            ct.c_int(N), ct.c_int(n_theta), ct.c_int(n_phi),
+            list_to_c_complex_array(f_arr),
+            list_to_c_double_array(x_arr), list_to_c_double_array(y_arr),
+            list_to_c_double_array(theta), list_to_c_double_array(phi),
+            ct.c_double(wave_num),
+        )
+        af_2d = np.array([abs(complex(raw_2d[i].real, raw_2d[i].imag))
+                          for i in range(n_theta * n_phi)]).reshape(n_theta, n_phi)
+        lib.FreeComplexArr(raw_2d)
+        af_2d /= af_2d.max()
+        integrand = af_2d**2 * np.cos(theta)[:, np.newaxis]
+        D0_2d = 4 * math.pi / np.trapezoid(np.trapezoid(integrand, theta, axis=0), phi)
+
+        # 3D КНД
+        raw_3d = lib.Calculate3DAntennaArray(
+            ct.c_int(N), ct.c_int(n_theta), ct.c_int(n_phi),
+            list_to_c_complex_array(f_arr),
+            list_to_c_double_array(x_arr), list_to_c_double_array(y_arr),
+            list_to_c_double_array(z_arr),
+            list_to_c_double_array(theta), list_to_c_double_array(phi),
+            ct.c_double(wave_num),
+        )
+        af_3d = np.array([abs(complex(raw_3d[i].real, raw_3d[i].imag))
+                          for i in range(n_theta * n_phi)]).reshape(n_theta, n_phi)
+        lib.FreeComplexArr(raw_3d)
+        af_3d /= af_3d.max()
+        integrand_3d = af_3d**2 * np.cos(theta)[:, np.newaxis]
+        D0_3d = 4 * math.pi / np.trapezoid(np.trapezoid(integrand_3d, theta, axis=0), phi)
+
+        # 1D: D₀ = N (точное)
+        assert D0_1d == pytest.approx(N, rel=0.01)
+        # 2D и 3D: одинаковые (та же решётка)
+        assert D0_3d == pytest.approx(D0_2d, rel=0.01)
+        # 2D/3D КНД для линейной решётки — другой интеграл (φ ∈ [-π/2, π/2]),
+        # но значение должно быть разумным
+        assert D0_2d > 1.0
+
+
 # ---------------------------------------------------------------------------
 # Config loading
 # ---------------------------------------------------------------------------
