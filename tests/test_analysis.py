@@ -162,6 +162,33 @@ class TestAnalyzeCut1D:
         assert a["symmetry_3db"] == pytest.approx(1.0, abs=0.01)
         assert a["symmetry_null"] == pytest.approx(1.0, abs=0.01)
 
+    def test_max_sll_equals_first_for_uniform(self):
+        """Равномерная решётка: максимальный УБЛ = первый УБЛ (≈ −13.26 дБ)."""
+        result = _make_1d_pattern(16)
+        a = analyze_cut(result["theta_deg"], result["pattern_db"])
+        assert a["max_sll_db"] == pytest.approx(a["first_sll_db"], abs=0.01)
+
+    def test_mean_sll_below_max(self):
+        """Средний УБЛ ≤ максимальный (боковые лепестки убывают)."""
+        result = _make_1d_pattern(16)
+        a = analyze_cut(result["theta_deg"], result["pattern_db"])
+        assert a["mean_sll_db"] <= a["max_sll_db"] + 0.01
+
+    def test_n_sidelobes(self):
+        """N=16, d=λ/2: должно быть несколько боковых лепестков с каждой стороны."""
+        result = _make_1d_pattern(16)
+        a = analyze_cut(result["theta_deg"], result["pattern_db"])
+        # N-2 нулей → N-2 боковых лепестков суммарно (с обеих сторон)
+        assert a["n_sidelobes"] >= 4
+
+    def test_two_element_no_sidelobes_all(self):
+        """N=2: нет боковых лепестков → max/mean = None, count = 0."""
+        result = _make_1d_pattern(2, n_theta=10001)
+        a = analyze_cut(result["theta_deg"], result["pattern_db"])
+        assert a["max_sll_db"] is None
+        assert a["mean_sll_db"] is None
+        assert a["n_sidelobes"] == 0
+
     def test_two_element_no_sidelobe(self):
         """N=2: AF = cos(π/2·sinθ) — нет боковых лепестков."""
         result = _make_1d_pattern(2, n_theta=10001)

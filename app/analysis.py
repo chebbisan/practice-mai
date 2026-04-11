@@ -95,6 +95,47 @@ def _find_first_sidelobe(theta_deg, pattern_db, start, direction):
     return None, None
 
 
+def _find_all_sidelobes(theta_deg, pattern_db, start, direction):
+    """Находит все боковые лепестки от *start* в направлении *direction*.
+
+    Возвращает список (theta_deg, level_db) для каждой вершины.
+    """
+    n = len(pattern_db)
+    i = start
+    sidelobes = []
+
+    # Спуск от главного лепестка до первого нуля
+    while 0 <= i + direction < n:
+        j = i + direction
+        if pattern_db[j] > pattern_db[i]:
+            break
+        i = j
+    else:
+        return sidelobes
+
+    # Чередование: подъём (лепесток) → спуск (нуль) → подъём ...
+    while 0 <= i + direction < n:
+        # Подъём до вершины
+        while 0 <= i + direction < n:
+            j = i + direction
+            if pattern_db[j] < pattern_db[i]:
+                sidelobes.append((float(theta_deg[i]), float(pattern_db[i])))
+                break
+            i = j
+        else:
+            break
+        # Спуск до следующего нуля
+        while 0 <= i + direction < n:
+            j = i + direction
+            if pattern_db[j] > pattern_db[i]:
+                break
+            i = j
+        else:
+            break
+
+    return sidelobes
+
+
 # ---------------------------------------------------------------------------
 # Основная функция анализа среза ДН
 # ---------------------------------------------------------------------------
@@ -141,9 +182,22 @@ def analyze_cut(theta_deg: np.ndarray, pattern_db: np.ndarray) -> dict:
     _, sll_left_db = _find_first_sidelobe(theta_deg, pattern_db, peak_idx, -1)
     _, sll_right_db = _find_first_sidelobe(theta_deg, pattern_db, peak_idx, +1)
 
-    # УБЛ — наихудший (наибольший) из двух сторон
+    # УБЛ первого — наихудший (наибольший) из двух сторон
     sll_values = [v for v in (sll_left_db, sll_right_db) if v is not None]
     first_sll_db = max(sll_values) if sll_values else None
+
+    # Все боковые лепестки → максимальный и средний УБЛ
+    all_sl = (_find_all_sidelobes(theta_deg, pattern_db, peak_idx, -1)
+              + _find_all_sidelobes(theta_deg, pattern_db, peak_idx, +1))
+    if all_sl:
+        all_levels = [lvl for _, lvl in all_sl]
+        max_sll_db = float(max(all_levels))
+        mean_sll_db = float(np.mean(all_levels))
+        n_sidelobes = len(all_sl)
+    else:
+        max_sll_db = None
+        mean_sll_db = None
+        n_sidelobes = 0
 
     # Сектор главного лепестка (ширина по нулям)
     if null_left_deg is not None and null_right_deg is not None:
@@ -176,6 +230,9 @@ def analyze_cut(theta_deg: np.ndarray, pattern_db: np.ndarray) -> dict:
         "first_sll_db": first_sll_db,
         "first_sll_left_db": sll_left_db,
         "first_sll_right_db": sll_right_db,
+        "max_sll_db": max_sll_db,
+        "mean_sll_db": mean_sll_db,
+        "n_sidelobes": n_sidelobes,
         "symmetry_3db": symmetry_3db,
         "symmetry_null": symmetry_null,
     }
@@ -344,7 +401,14 @@ def format_analysis(analysis: dict) -> str:
             if nulls:
                 lines.append(f"    Первые нули: {', '.join(nulls)}")
             if cut["first_sll_db"] is not None:
-                lines.append(f"    УБЛ: {cut['first_sll_db']:.2f} дБ")
+                lines.append(f"    УБЛ первого БЛ:      {cut['first_sll_db']:.2f} дБ")
+            if cut["max_sll_db"] is not None:
+                lines.append(f"    УБЛ макс.:           {cut['max_sll_db']:.2f} дБ")
+            if cut["mean_sll_db"] is not None:
+                lines.append(
+                    f"    УБЛ средний:         {cut['mean_sll_db']:.2f} дБ"
+                    f"  ({cut['n_sidelobes']} БЛ)"
+                )
             if cut["symmetry_3db"] is not None:
                 lines.append(f"    Симметрия (−3 дБ):    {cut['symmetry_3db']:.3f}")
             if cut["symmetry_null"] is not None:
@@ -378,7 +442,14 @@ def format_analysis(analysis: dict) -> str:
         if nulls:
             lines.append(f"  Первые нули: {', '.join(nulls)}")
         if analysis["first_sll_db"] is not None:
-            lines.append(f"  УБЛ: {analysis['first_sll_db']:.2f} дБ")
+            lines.append(f"  УБЛ первого БЛ:      {analysis['first_sll_db']:.2f} дБ")
+        if analysis.get("max_sll_db") is not None:
+            lines.append(f"  УБЛ макс.:           {analysis['max_sll_db']:.2f} дБ")
+        if analysis.get("mean_sll_db") is not None:
+            lines.append(
+                f"  УБЛ средний:         {analysis['mean_sll_db']:.2f} дБ"
+                f"  ({analysis['n_sidelobes']} БЛ)"
+            )
         if analysis.get("symmetry_3db") is not None:
             lines.append(f"  Симметрия (−3 дБ):    {analysis['symmetry_3db']:.3f}")
         if analysis.get("symmetry_null") is not None:
