@@ -15,14 +15,16 @@ cmake --build "$BUILD_DIR"
 case "$1" in
     1d)    python3 "$ROOT/app/calc_1d.py" ;;
     2d)    python3 "$ROOT/app/calc_2d.py" ;;
+    3d)    python3 "$ROOT/app/calc_3d.py" ;;
     app)   python3 "$ROOT/app/gui.py" ;;
-    bench) python3 -m pytest "$ROOT/tests/test_benchmark.py" "$ROOT/tests/test_benchmark_1d.py" "$ROOT/tests/test_benchmark_2d.py" -v ;;
+    bench) python3 -m pytest "$ROOT/tests/test_benchmark.py" "$ROOT/tests/test_benchmark_1d.py" "$ROOT/tests/test_benchmark_2d.py" "$ROOT/tests/test_benchmark_3d.py" -v ;;
     test)  python3 -m pytest "$ROOT/tests/test_antenna_array.py" -v ;;
     *)
-        echo "Usage: $0 {1d|2d|app|bench|test}"
+        echo "Usage: $0 {1d|2d|3d|app|bench|test}"
         echo ""
         echo "  1d     Run 1D antenna array (calc_1d.py)"
         echo "  2d     Run 2D antenna array from CSV (calc_2d.py)"
+        echo "  3d     Run 3D spatial antenna array from CSV (calc_3d.py)"
         echo "  app    Run PyQt6 GUI (gui.py)"
         echo "  bench  Run benchmark suite"
         echo "  test   Run test suite"

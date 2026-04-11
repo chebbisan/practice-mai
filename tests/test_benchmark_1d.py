@@ -140,6 +140,32 @@ def _full_pipeline_cpp(lib):
 
 
 # ---------------------------------------------------------------------------
+# Pure C++ (single ctypes call)
+# ---------------------------------------------------------------------------
+
+
+def _full_pipeline_pure_cpp(lib):
+    N = 16
+    freq = 3e9
+    n_theta = 1001
+    lam = 3e8 / freq
+    d = lam / 2
+    wave_num = 2 * math.pi / lam
+    L = d * (N - 1)
+    x_arr = np.array([i * d - L / 2 for i in range(N)])
+    amps = np.ones(N)
+    theta = np.linspace(-math.pi / 2, math.pi / 2, n_theta)
+
+    c_x = list_to_c_double_array(x_arr)
+    c_amps = list_to_c_double_array(amps)
+    c_theta = list_to_c_double_array(theta)
+
+    return lib.FullPipeline1D(
+        ct.c_int(N), ct.c_int(n_theta), c_x, c_amps, c_theta, ct.c_double(wave_num)
+    )
+
+
+# ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
 
@@ -154,3 +180,7 @@ def test_pipeline_1d_numpy(benchmark):
 
 def test_pipeline_1d_cpp(benchmark, lib):
     benchmark(_full_pipeline_cpp, lib)
+
+
+def test_pipeline_1d_pure_cpp(benchmark, lib):
+    benchmark(_full_pipeline_pure_cpp, lib)

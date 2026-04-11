@@ -41,14 +41,16 @@ CONFIG_PATH = Path(__file__).parent / "config.yaml"
 def load_array_from_csv(path: Path) -> tuple[np.ndarray, ...]:
     """Загружает произвольное расположение элементов из CSV.
 
-    Поддерживает два формата (заголовок необязателен, строки с # игнорируются):
+    Поддерживает три формата (заголовок необязателен, строки с # игнорируются):
 
     2 колонки (1D):  x_m, amplitude_db
     3 колонки (2D):  x_m, y_m, amplitude_db
+    4 колонки (3D):  x_m, y_m, z_m, amplitude_db
 
     Возвращает:
         1D: (x_arr, amplitudes)
         2D: (x_arr, y_arr, amplitudes)
+        3D: (x_arr, y_arr, z_arr, amplitudes)
     """
     rows = []
     with open(path, newline="") as f:
@@ -67,7 +69,13 @@ def load_array_from_csv(path: Path) -> tuple[np.ndarray, ...]:
         raise ValueError(f"CSV файл пуст или не содержит числовых данных: {path}")
 
     ncols = len(rows[0])
-    if ncols >= 3:
+    if ncols >= 4:
+        x_arr = np.array([r[0] for r in rows])
+        y_arr = np.array([r[1] for r in rows])
+        z_arr = np.array([r[2] for r in rows])
+        amplitudes = np.array([10 ** (r[3] / 20) for r in rows])
+        return x_arr, y_arr, z_arr, amplitudes
+    elif ncols >= 3:
         x_arr = np.array([r[0] for r in rows])
         y_arr = np.array([r[1] for r in rows])
         amplitudes = np.array([10 ** (r[2] / 20) for r in rows])

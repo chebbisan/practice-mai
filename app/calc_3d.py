@@ -1,0 +1,265 @@
+import ctypes as ct
+import logging
+import platform
+from pathlib import Path
+
+import yaml
+
+import matplotlib.pyplot as plt
+import numpy as np
+
+from complex import complex_t
+from util import (
+    initialize_library,
+    list_to_c_double_array,
+    list_to_c_complex_array,
+)
+from calc_1d import load_array_from_csv, element_pattern
+from plot_2d import plot_heatmap
+
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+logging.getLogger("matplotlib").setLevel(logging.WARNING)
+logger = logging.getLogger(__name__)
+
+SPEED_OF_LIGHT = 3 * 10**8
+
+ROOT = Path(__file__).parent.parent
+_LIB_SUFFIX = {"Darwin": ".dylib", "Windows": ".dll"}.get(platform.system(), ".so")
+LIB_PATH = ROOT / "build" / f"libAntennaArray{_LIB_SUFFIX}"
+CONFIG_PATH = Path(__file__).parent / "config.yaml"
+
+
+def compute_pattern_3d(
+    x_arr: np.ndarray,
+    y_arr: np.ndarray,
+    z_arr: np.ndarray,
+    amplitudes: np.ndarray,
+    freq_hz: float,
+    n_theta: int,
+    n_phi: int,
+    elem_pattern_name: str,
+    c_lib,
+) -> dict:
+    N = len(x_arr)
+    wave_length = SPEED_OF_LIGHT / freq_hz
+    wave_num = 2 * np.pi / wave_length
+    logger.debug(
+        "compute_pattern_3d: N=%d, lambda=%.4f m, k=%.4f rad/m",
+        N,
+        wave_length,
+        wave_num,
+    )
+
+    theta = np.linspace(-np.pi / 2, np.pi / 2, n_theta)
+    phi = np.linspace(-np.pi / 2, np.pi / 2, n_phi)
+
+    f_arr = [complex_t(float(a), 0.0) for a in amplitudes]
+    c_f = list_to_c_complex_array(f_arr)
+    c_x = list_to_c_double_array(x_arr)
+    c_y = list_to_c_double_array(y_arr)
+    c_z = list_to_c_double_array(z_arr)
+    c_theta = list_to_c_double_array(theta)
+    c_phi = list_to_c_double_array(phi)
+
+    raw = c_lib.Calculate3DAntennaArray(
+        ct.c_int(N),
+        ct.c_int(n_theta),
+        ct.c_int(n_phi),
+        c_f,
+        c_x,
+        c_y,
+        c_z,
+        c_theta,
+        c_phi,
+        ct.c_double(wave_num),
+    )
+
+    total = n_theta * n_phi
+    af_complex = np.array(
+        [complex(raw[i].real, raw[i].imag) for i in range(total)]
+    ).reshape(n_theta, n_phi)
+    c_lib.FreeComplexArr(raw)
+
+    af_2d = np.abs(af_complex)
+    phase_2d = np.degrees(np.angle(af_complex))
+
+    f1_theta = element_pattern(elem_pattern_name, theta)
+    f1_2d = f1_theta[:, np.newaxis] * np.ones((1, n_phi))
+
+    full = f1_2d * af_2d
+    full /= full.max()
+
+    pattern_db = 20 * np.log10(np.maximum(full, 1e-10))
+
+    peak_idx = np.unravel_index(np.argmax(full), full.shape)
+
+    # КНД по формуле 10.40: D₀ = 4π / ∫∫ F²(Θ,φ) cosΘ dΘ dφ
+    integrand = full**2 * np.cos(theta)[:, np.newaxis]
+    inner = np.trapezoid(integrand, theta, axis=0)
+    D0 = 4 * np.pi / np.trapezoid(inner, phi)
+    D0_db = 10 * np.log10(D0)
+    logger.debug("Directivity D0=%.2f (%.2f dB)", D0, D0_db)
+
+    return {
+        "theta": theta,
+        "phi": phi,
+        "pattern_2d": full,
+        "pattern_db": pattern_db,
+        "array_factor": af_2d / af_2d.max(),
+        "phase_deg": phase_2d,
+        "f1_2d": f1_2d,
+        "N": N,
+        "D0": D0,
+        "D0_db": D0_db,
+        "peak_theta_idx": peak_idx[0],
+        "peak_phi_idx": peak_idx[1],
+    }
+
+
+def plot_array_3d(
+    x_arr: np.ndarray, y_arr: np.ndarray, z_arr: np.ndarray, amplitudes: np.ndarray
+):
+    """Отображает расположение элементов 3D АР."""
+    fig = plt.figure(figsize=(8, 6))
+    ax = fig.add_subplot(111, projection="3d")
+    amp_db = 20 * np.log10(np.maximum(amplitudes / amplitudes.max(), 1e-10))
+    sc = ax.scatter(
+        x_arr * 1e3,
+        y_arr * 1e3,
+        z_arr * 1e3,
+        c=amp_db,
+        cmap="viridis",
+        s=120,
+        edgecolors="black",
+        vmin=-20,
+        vmax=0,
+    )
+    ax.set_xlabel("x, мм")
+    ax.set_ylabel("y, мм")
+    ax.set_zlabel("z, мм")
+    ax.set_title(f"Расположение элементов (N={len(x_arr)})")
+    fig.colorbar(sc, ax=ax, label="Амплитуда, дБ", shrink=0.6)
+    plt.tight_layout()
+    plt.show()
+
+
+def export_pattern_3d_csv(result: dict, path: Path, freq_hz: float = 0.0):
+    """Экспорт 3D ДН в CSV, совместимый с CST Studio Suite."""
+    theta_deg = np.degrees(result["theta"])
+    phi_deg = np.degrees(result["phi"])
+    pattern_db = result["pattern_db"]
+
+    with open(path, "w", newline="") as f:
+        f.write(f"# Farfield Pattern Export (3D spatial array)\n")
+        f.write(f"# Frequency [Hz]: {freq_hz:.6e}\n")
+        f.write(f"# N elements: {result['N']}\n")
+        f.write(f"# Directivity [dBi]: {result['D0_db']:.2f}\n")
+        f.write(f"# Theta points: {len(theta_deg)}, Phi points: {len(phi_deg)}\n")
+        f.write(
+            "Theta [deg.]; Phi [deg.]; Abs(Dir.)[dB]; Abs(F); Phase(F)[deg.]\n"
+        )
+        af = result["array_factor"]
+        phase = result["phase_deg"]
+        for j, p in enumerate(phi_deg):
+            for i, t in enumerate(theta_deg):
+                f.write(
+                    f"{t:.4f}; {p:.4f}; {pattern_db[i, j]:.4f}; "
+                    f"{af[i, j]:.6f}; {phase[i, j]:.4f}\n"
+                )
+    logger.info("Exported 3D pattern to %s (%d rows)", path, len(theta_deg) * len(phi_deg))
+
+
+def plot_3d_with_cuts(result: dict):
+    theta = result["theta"]
+    phi = result["phi"]
+    pattern_db = result["pattern_db"]
+
+    plot_heatmap(theta, phi, pattern_db)
+
+    # Срезы в главных плоскостях: φ=0° (xz) и φ=90° (yz)
+    i_phi_0 = np.argmin(np.abs(phi - 0.0))
+    i_phi_90 = np.argmin(np.abs(phi - np.pi / 2))
+    cut_xz = pattern_db[:, i_phi_0]
+    cut_yz = pattern_db[:, i_phi_90]
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(13, 5))
+    fig.suptitle(f"КНД $D_0$ = {result['D0']:.2f} ({result['D0_db']:.2f} дБ)")
+
+    ax1.plot(np.degrees(theta), cut_xz)
+    ax1.set_xlabel(r"$\theta$, deg")
+    ax1.set_ylabel(r"$|F|$, dB")
+    ax1.set_ylim(-60, 0)
+    ax1.set_title(r"$\varphi=0°$ (xz)")
+    ax1.grid(True)
+
+    ax2.plot(np.degrees(theta), cut_yz)
+    ax2.set_xlabel(r"$\theta$, deg")
+    ax2.set_ylabel(r"$|F|$, dB")
+    ax2.set_ylim(-60, 0)
+    ax2.set_title(r"$\varphi=90°$ (yz)")
+    ax2.grid(True)
+
+    plt.tight_layout()
+    plt.show()
+
+
+def main():
+    logger.info("Starting 3D antenna array calculation")
+
+    with open(CONFIG_PATH) as f:
+        cfg = yaml.safe_load(f)["array_3d"]
+
+    freq_hz = cfg["freq_hz"]
+    n_theta = cfg["n_theta"]
+    n_phi = cfg["n_phi"]
+    elem_pattern_name = cfg.get("element_pattern", "isotropic")
+    csv_file = cfg["csv_file"]
+
+    csv_path = (
+        Path(csv_file)
+        if Path(csv_file).is_absolute()
+        else Path(__file__).parent / csv_file
+    )
+
+    data = load_array_from_csv(csv_path)
+    if len(data) != 4:
+        raise ValueError("3D array CSV must have 4 columns: x_m, y_m, z_m, amplitude_db")
+    x_arr, y_arr, z_arr, amplitudes = data
+
+    logger.info("Loaded %d elements from %s", len(x_arr), csv_path)
+
+    c_lib = initialize_library(str(LIB_PATH))
+
+    result = compute_pattern_3d(
+        x_arr,
+        y_arr,
+        z_arr,
+        amplitudes,
+        freq_hz,
+        n_theta,
+        n_phi,
+        elem_pattern_name,
+        c_lib,
+    )
+
+    logger.info(
+        "N=%d, peak at theta[%d]=%.1f deg, phi[%d]=%.1f deg",
+        result["N"],
+        result["peak_theta_idx"],
+        np.degrees(result["theta"][result["peak_theta_idx"]]),
+        result["peak_phi_idx"],
+        np.degrees(result["phi"][result["peak_phi_idx"]]),
+    )
+
+    export_pattern_3d_csv(result, Path(__file__).parent / "output" / "output_3d.csv", freq_hz)
+
+    plot_array_3d(x_arr, y_arr, z_arr, amplitudes)
+    plot_3d_with_cuts(result)
+    logger.info("Done")
+
+
+if __name__ == "__main__":
+    main()

@@ -46,6 +46,30 @@ def _initialize_arg_types(library):
         ct.POINTER(ct.c_double),  # phi_arr
         ct.c_double,  # wave_num
     ]
+    library.Calculate3DAntennaArray.argtypes = [
+        ct.c_int,  # N
+        ct.c_int,  # n_theta
+        ct.c_int,  # n_phi
+        ct.POINTER(complex_t),  # f_arr
+        ct.POINTER(ct.c_double),  # x_arr
+        ct.POINTER(ct.c_double),  # y_arr
+        ct.POINTER(ct.c_double),  # z_arr
+        ct.POINTER(ct.c_double),  # theta_arr
+        ct.POINTER(ct.c_double),  # phi_arr
+        ct.c_double,  # wave_num
+    ]
+    library.FullPipeline3D.argtypes = [
+        ct.c_int,  # N
+        ct.c_int,  # n_theta
+        ct.c_int,  # n_phi
+        ct.POINTER(ct.c_double),  # x_arr
+        ct.POINTER(ct.c_double),  # y_arr
+        ct.POINTER(ct.c_double),  # z_arr
+        ct.POINTER(ct.c_double),  # amplitudes
+        ct.POINTER(ct.c_double),  # theta_arr
+        ct.POINTER(ct.c_double),  # phi_arr
+        ct.c_double,  # wave_num
+    ]
     library.ComplexArrayMagnitude.argtypes = [
         ct.POINTER(complex_t),
         ct.POINTER(ct.c_double),
@@ -63,6 +87,25 @@ def _initialize_arg_types(library):
         ct.POINTER(ct.c_double),
         ct.c_int,
         ct.c_int,
+    ]
+    library.FullPipeline1D.argtypes = [
+        ct.c_int,  # N
+        ct.c_int,  # n_theta
+        ct.POINTER(ct.c_double),  # x_arr
+        ct.POINTER(ct.c_double),  # amplitudes
+        ct.POINTER(ct.c_double),  # theta_arr
+        ct.c_double,  # wave_num
+    ]
+    library.FullPipeline2D.argtypes = [
+        ct.c_int,  # N
+        ct.c_int,  # n_theta
+        ct.c_int,  # n_phi
+        ct.POINTER(ct.c_double),  # x_arr
+        ct.POINTER(ct.c_double),  # y_arr
+        ct.POINTER(ct.c_double),  # amplitudes
+        ct.POINTER(ct.c_double),  # theta_arr
+        ct.POINTER(ct.c_double),  # phi_arr
+        ct.c_double,  # wave_num
     ]
 
 
@@ -82,10 +125,14 @@ def _initialize_res_types(library):
     library.RadiansToDegrees.restype = ct.c_double
     library.Calculate1DAntennaArray.restype = ct.POINTER(complex_t)
     library.Calculate2DAntennaArray.restype = ct.POINTER(complex_t)
+    library.Calculate3DAntennaArray.restype = ct.POINTER(complex_t)
+    library.FullPipeline3D.restype = ct.c_double
     library.ComplexArrayMagnitude.restype = None
     library.NormalizeArray.restype = ct.c_double
     library.CalculateDirectivity1D.restype = ct.c_double
     library.CalculateDirectivity2D.restype = ct.c_double
+    library.FullPipeline1D.restype = ct.c_double
+    library.FullPipeline2D.restype = ct.c_double
 
 
 # Инициализация C-библиотеки

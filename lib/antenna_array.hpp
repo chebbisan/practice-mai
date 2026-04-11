@@ -43,6 +43,28 @@ double CalculateDirectivity1D(double* pattern, double* theta, int n_theta);
 // pattern — row-major [n_theta × n_phi]
 double CalculateDirectivity2D(double* pattern, double* theta, double* phi, int n_theta, int n_phi);
 
+// Расчет пространственной (3D) антенной решетки с произвольным расположением элементов
+// AF(θ,φ) = (1/N) Σ fₙ exp(-jk(xₙ sinθ cosφ + yₙ sinθ sinφ + zₙ cosθ))
+// Результат — плоский массив размера n_theta * n_phi (row-major, theta — внешний индекс)
+complex_t* Calculate3DAntennaArray(int N, int n_theta, int n_phi, complex_t* f_arr, double* x_arr,
+                                   double* y_arr, double* z_arr, double* theta_arr,
+                                   double* phi_arr, double wave_num);
+
+// Полный конвейер 1D: АФР → модуль → ДН элемента (cos) → нормировка → КНД
+// Возвращает D₀
+double FullPipeline1D(int N, int n_theta, double* x_arr, double* amplitudes, double* theta_arr,
+                      double wave_num);
+
+// Полный конвейер 2D: АФР → модуль → ДН элемента (cos) → нормировка → КНД
+// Возвращает D₀
+double FullPipeline2D(int N, int n_theta, int n_phi, double* x_arr, double* y_arr,
+                      double* amplitudes, double* theta_arr, double* phi_arr, double wave_num);
+
+// Полный конвейер 3D: АФР → модуль → ДН элемента (cos) → нормировка → КНД
+// Возвращает D₀
+double FullPipeline3D(int N, int n_theta, int n_phi, double* x_arr, double* y_arr, double* z_arr,
+                      double* amplitudes, double* theta_arr, double* phi_arr, double wave_num);
+
 // Освобождение double-массива
 void FreeDoubleArr(double* arr);
 };

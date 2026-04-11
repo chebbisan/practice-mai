@@ -671,6 +671,146 @@ class TestDirectivity2D:
         assert ratio == pytest.approx(2.0, rel=0.15)
 
 
+class TestDirectivity3D:
+    """КНД 3D (пространственной) АР."""
+
+    def _compute_3d(self, N, x_arr, y_arr, z_arr, n_theta=301, n_phi=301):
+        lib = _lib()
+        freq = 3e9
+        lam = 3e8 / freq
+        wave_num = 2 * math.pi / lam
+        theta = np.linspace(-math.pi / 2, math.pi / 2, n_theta)
+        phi = np.linspace(-math.pi / 2, math.pi / 2, n_phi)
+
+        f_arr = [complex_t(1.0, 0.0)] * N
+        raw = lib.Calculate3DAntennaArray(
+            ct.c_int(N),
+            ct.c_int(n_theta),
+            ct.c_int(n_phi),
+            list_to_c_complex_array(f_arr),
+            list_to_c_double_array(x_arr),
+            list_to_c_double_array(y_arr),
+            list_to_c_double_array(z_arr),
+            list_to_c_double_array(theta),
+            list_to_c_double_array(phi),
+            ct.c_double(wave_num),
+        )
+        total = n_theta * n_phi
+        af = np.array([abs(complex(raw[i].real, raw[i].imag)) for i in range(total)])
+        lib.FreeComplexArr(raw)
+        af_2d = af.reshape(n_theta, n_phi)
+        af_2d /= af_2d.max()
+
+        integrand = af_2d**2 * np.cos(theta)[:, np.newaxis]
+        inner = np.trapezoid(integrand, theta, axis=0)
+        denominator = np.trapezoid(inner, phi)
+        return 4 * math.pi / denominator
+
+    def test_single_element_isotropic(self):
+        """N=1 at origin: AF=1 everywhere → D₀ ≈ 2.0."""
+        x = np.array([0.0])
+        y = np.array([0.0])
+        z = np.array([0.0])
+        D0 = self._compute_3d(1, x, y, z)
+        assert D0 == pytest.approx(2.0, rel=0.02)
+
+    def test_z_zero_matches_2d(self):
+        """z=0 для всех элементов → результат совпадает с 2D Calculate2DAntennaArray."""
+        freq = 3e9
+        lam = 3e8 / freq
+        d = lam / 2
+        Nx, Ny = 4, 4
+        xs, ys, zs = [], [], []
+        for ix in range(Nx):
+            for iy in range(Ny):
+                xs.append((ix - (Nx - 1) / 2) * d)
+                ys.append((iy - (Ny - 1) / 2) * d)
+                zs.append(0.0)
+        N = Nx * Ny
+        x_arr = np.array(xs)
+        y_arr = np.array(ys)
+        z_arr = np.array(zs)
+
+        lib = _lib()
+        wave_num = 2 * math.pi / lam
+        n_theta, n_phi = 101, 101
+        theta = np.linspace(-math.pi / 2, math.pi / 2, n_theta)
+        phi = np.linspace(-math.pi / 2, math.pi / 2, n_phi)
+        f_arr = [complex_t(1.0, 0.0)] * N
+
+        raw_2d = lib.Calculate2DAntennaArray(
+            ct.c_int(N), ct.c_int(n_theta), ct.c_int(n_phi),
+            list_to_c_complex_array(f_arr),
+            list_to_c_double_array(x_arr), list_to_c_double_array(y_arr),
+            list_to_c_double_array(theta), list_to_c_double_array(phi),
+            ct.c_double(wave_num),
+        )
+        raw_3d = lib.Calculate3DAntennaArray(
+            ct.c_int(N), ct.c_int(n_theta), ct.c_int(n_phi),
+            list_to_c_complex_array(f_arr),
+            list_to_c_double_array(x_arr), list_to_c_double_array(y_arr),
+            list_to_c_double_array(z_arr),
+            list_to_c_double_array(theta), list_to_c_double_array(phi),
+            ct.c_double(wave_num),
+        )
+        total = n_theta * n_phi
+        for i in range(total):
+            assert raw_3d[i].real == pytest.approx(raw_2d[i].real, abs=1e-12)
+            assert raw_3d[i].imag == pytest.approx(raw_2d[i].imag, abs=1e-12)
+        lib.FreeComplexArr(raw_2d)
+        lib.FreeComplexArr(raw_3d)
+
+    def test_directivity_increases_with_elements(self):
+        """Добавление элементов по z увеличивает КНД."""
+        freq = 3e9
+        lam = 3e8 / freq
+        d = lam / 2
+        # 4x4 planar
+        xs_base, ys_base = [], []
+        for ix in range(4):
+            for iy in range(4):
+                xs_base.append((ix - 1.5) * d)
+                ys_base.append((iy - 1.5) * d)
+
+        # 4x4x1 (planar)
+        D0_1layer = self._compute_3d(
+            16, np.array(xs_base), np.array(ys_base), np.zeros(16)
+        )
+
+        # 4x4x2 (two layers)
+        xs, ys, zs = [], [], []
+        for iz in range(2):
+            for i in range(16):
+                xs.append(xs_base[i])
+                ys.append(ys_base[i])
+                zs.append((iz - 0.5) * d)
+        D0_2layers = self._compute_3d(
+            32, np.array(xs), np.array(ys), np.array(zs)
+        )
+
+        assert D0_2layers > D0_1layer
+
+    def test_cuboid_4x4x2(self):
+        """Регрессионный тест: кубоидная решётка 4×4×2, d=0.5λ."""
+        freq = 3e9
+        lam = 3e8 / freq
+        d = lam / 2
+        Nx, Ny, Nz = 4, 4, 2
+        xs, ys, zs = [], [], []
+        for ix in range(Nx):
+            for iy in range(Ny):
+                for iz in range(Nz):
+                    xs.append((ix - (Nx - 1) / 2) * d)
+                    ys.append((iy - (Ny - 1) / 2) * d)
+                    zs.append((iz - (Nz - 1) / 2) * d)
+        N = Nx * Ny * Nz
+        D0 = self._compute_3d(N, np.array(xs), np.array(ys), np.array(zs))
+        D0_db = 10 * math.log10(D0)
+        # 32 elements with z-axis extent should give reasonable directivity
+        assert D0 > 5.0, f"D0={D0:.2f} ({D0_db:.2f} dB)"
+        assert D0 < 100.0, f"D0={D0:.2f} ({D0_db:.2f} dB)"
+
+
 # ---------------------------------------------------------------------------
 # Config loading
 # ---------------------------------------------------------------------------
