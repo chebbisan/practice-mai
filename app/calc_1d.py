@@ -338,6 +338,11 @@ def main():
 
     export_pattern_csv(result, Path(__file__).parent / "output" / "output_1d.csv", freq_0)
 
+    from analysis import analyze_pattern_1d, format_analysis
+
+    analysis = analyze_pattern_1d(result)
+    logger.info("Параметры главного лепестка:\n%s", format_analysis(analysis))
+
     plot_array_1d(x_arr, amplitudes)
     plot_pattern(result)
     logger.info("Done")

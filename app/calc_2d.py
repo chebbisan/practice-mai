@@ -224,6 +224,11 @@ def main():
 
     export_pattern_2d_csv(result, Path(__file__).parent / "output" / "output_2d.csv", freq_hz)
 
+    from analysis import analyze_pattern_2d, format_analysis
+
+    analysis = analyze_pattern_2d(result)
+    logger.info("Параметры главного лепестка:\n%s", format_analysis(analysis))
+
     plot_array_2d(x_arr, y_arr, amplitudes)
     plot_2d_with_cuts(result)
     logger.info("Done")
