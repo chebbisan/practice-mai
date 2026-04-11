@@ -73,7 +73,9 @@ def _full_pipeline_python():
             sin_p = _m.sin(phi[j])
             re, im = 0.0, 0.0
             for n in range(N_TOTAL):
-                phase = -k * (xs[n] * sin_t * cos_p + ys[n] * sin_t * sin_p + zs[n] * cos_t)
+                phase = -k * (
+                    xs[n] * sin_t * cos_p + ys[n] * sin_t * sin_p + zs[n] * cos_t
+                )
                 re += amps[n] * _m.cos(phase)
                 im += amps[n] * _m.sin(phase)
             af[i * N_PHI + j] = _m.sqrt(re * re + im * im) / N_TOTAL
