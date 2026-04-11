@@ -9,12 +9,16 @@ Run with:
 """
 
 import math
-from pathlib import Path
 
 import numpy as np
 import pytest
 
-from app.analysis import analyze_cut, analyze_pattern_1d, analyze_pattern_2d, analyze_csv
+from app.analysis import (
+    analyze_cut,
+    analyze_pattern_1d,
+    analyze_pattern_2d,
+    analyze_csv,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -212,9 +216,16 @@ class TestAnalyzePattern1D:
     def test_returns_all_keys(self):
         result = _make_1d_pattern(8)
         a = analyze_pattern_1d(result)
-        for key in ("peak_deg", "beamwidth_3db", "beamwidth_10db",
-                     "first_null_left_deg", "first_null_right_deg",
-                     "first_sll_db", "D0", "D0_db"):
+        for key in (
+            "peak_deg",
+            "beamwidth_3db",
+            "beamwidth_10db",
+            "first_null_left_deg",
+            "first_null_right_deg",
+            "first_sll_db",
+            "D0",
+            "D0_db",
+        ):
             assert key in a
 
 

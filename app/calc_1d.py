@@ -1,114 +1,22 @@
-import ctypes as ct
-import csv
 import logging
-import platform
 from pathlib import Path
 from typing import TypedDict
-
-import yaml
 
 import matplotlib.pyplot as plt
 import numpy as np
 
-from complex import complex_t
-from util import (
-    initialize_library,
-    list_to_c_double_array,
-    list_to_c_complex_array,
-    calculate_delta_x,
+from common import (
+    SPEED_OF_LIGHT,
+    setup_logging,
+    load_config,
+    load_array_from_csv,
+    element_pattern,
 )
+from analysis import analyze_pattern_1d, format_analysis
+from util import calculate_delta_x
 
-logging.basicConfig(
-    level=logging.DEBUG,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-)
-logging.getLogger("matplotlib").setLevel(logging.WARNING)
+setup_logging()
 logger = logging.getLogger(__name__)
-
-SPEED_OF_LIGHT = 3 * 10**8
-
-ROOT = Path(__file__).parent.parent
-_LIB_SUFFIX = {"Darwin": ".dylib", "Windows": ".dll"}.get(platform.system(), ".so")
-LIB_PATH = ROOT / "build" / f"libAntennaArray{_LIB_SUFFIX}"
-CONFIG_PATH = Path(__file__).parent / "config.yaml"
-
-
-# ---------------------------------------------------------------------------
-# Вспомогательные функции
-# ---------------------------------------------------------------------------
-
-
-def load_array_from_csv(path: Path) -> tuple[np.ndarray, ...]:
-    """Загружает произвольное расположение элементов из CSV.
-
-    Поддерживает три формата (заголовок необязателен, строки с # игнорируются):
-
-    2 колонки (1D):  x_m, amplitude_db
-    3 колонки (2D):  x_m, y_m, amplitude_db
-    4 колонки (3D):  x_m, y_m, z_m, amplitude_db
-
-    Возвращает:
-        1D: (x_arr, amplitudes)
-        2D: (x_arr, y_arr, amplitudes)
-        3D: (x_arr, y_arr, z_arr, amplitudes)
-    """
-    rows = []
-    with open(path, newline="") as f:
-        reader = csv.reader(f)
-        for row in reader:
-            if not row or row[0].strip().startswith("#"):
-                continue
-            try:
-                vals = [float(v) for v in row]
-            except ValueError:
-                continue  # заголовок
-            if len(vals) < 2:
-                continue
-            rows.append(vals)
-    if not rows:
-        raise ValueError(f"CSV файл пуст или не содержит числовых данных: {path}")
-
-    ncols = len(rows[0])
-    if ncols >= 4:
-        x_arr = np.array([r[0] for r in rows])
-        y_arr = np.array([r[1] for r in rows])
-        z_arr = np.array([r[2] for r in rows])
-        amplitudes = np.array([10 ** (r[3] / 20) for r in rows])
-        return x_arr, y_arr, z_arr, amplitudes
-    elif ncols >= 3:
-        x_arr = np.array([r[0] for r in rows])
-        y_arr = np.array([r[1] for r in rows])
-        amplitudes = np.array([10 ** (r[2] / 20) for r in rows])
-        return x_arr, y_arr, amplitudes
-    else:
-        x_arr = np.array([r[0] for r in rows])
-        amplitudes = np.array([10 ** (r[1] / 20) for r in rows])
-        return x_arr, amplitudes
-
-
-def element_pattern(name: str, theta: np.ndarray) -> np.ndarray:
-    """Нормированная амплитудная характеристика одного элемента f₁(θ).
-
-    isotropic — изотропный излучатель: f₁ = 1
-    cosine    — косинусная:            f₁ = |cos θ|
-    dipole    — полуволновый вибратор: f₁ = |cos(π/2·sin θ) / cos θ|
-    """
-    if name == "isotropic":
-        return np.ones_like(theta)
-    if name == "cosine":
-        return np.abs(np.cos(theta))
-    if name == "dipole":
-        cos_t = np.cos(theta)
-        with np.errstate(divide="ignore", invalid="ignore"):
-            f1 = np.where(
-                np.abs(cos_t) < 1e-9,
-                0.0,
-                np.abs(np.cos(np.pi / 2 * np.sin(theta)) / cos_t),
-            )
-        return f1 / f1.max()
-    raise ValueError(
-        f"Unknown element_pattern: {name!r}. Use isotropic | cosine | dipole"
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -129,7 +37,7 @@ class PatternResult(TypedDict):
 
 
 # ---------------------------------------------------------------------------
-# 1. Функция расчёта (без GUI, без I/O)
+# 1. Функция расчёта (NumPy vectorized)
 # ---------------------------------------------------------------------------
 
 
@@ -139,20 +47,8 @@ def compute_pattern(
     freq_hz: float,
     n_theta: int,
     elem_pattern_name: str,
-    c_lib,
 ) -> PatternResult:
-    """Рассчитывает ДН линейной АР с произвольным расположением элементов.
-
-    Параметры:
-        x_arr            — координаты элементов, м  (форма [N])
-        amplitudes       — линейные амплитуды возбуждения [N]  (≥ 0)
-        freq_hz          — несущая частота, Гц
-        n_theta          — число точек по углу
-        elem_pattern_name — 'isotropic' | 'cosine' | 'dipole'
-        c_lib            — загруженная C-библиотека (initialize_library)
-
-    Возвращает PatternResult со всеми промежуточными данными.
-    """
+    """Рассчитывает ДН линейной АР с произвольным расположением элементов."""
     N = len(x_arr)
     wave_length = SPEED_OF_LIGHT / freq_hz
     wave_num = 2 * np.pi / wave_length
@@ -162,26 +58,11 @@ def compute_pattern(
 
     theta = np.linspace(-np.pi / 2, np.pi / 2, n_theta)
 
-    f_arr = [complex_t(float(a), 0.0) for a in amplitudes]
-    c_f = list_to_c_complex_array(f_arr)
-    c_x = list_to_c_double_array(x_arr)
-    c_theta = list_to_c_double_array(theta)
+    # NumPy vectorized: AF(θ) = (1/N) Σ aₙ exp(-jk xₙ sinθ)
+    phase = -wave_num * np.outer(x_arr, np.sin(theta))
+    af_complex = np.sum(amplitudes[:, np.newaxis] * np.exp(1j * phase), axis=0) / N
 
-    raw = c_lib.Calculate1DAntennaArray(
-        ct.c_int(N),
-        ct.c_int(n_theta),
-        c_f,
-        c_x,
-        c_theta,
-        ct.c_double(wave_num),
-    )
-    # Извлекаем комплексный AF (для фазы) и модуль
-    af_complex = np.array(
-        [complex(raw[i].real, raw[i].imag) for i in range(n_theta)]
-    )
-    c_lib.FreeComplexArr(raw)
     af = np.abs(af_complex)
-
     f1 = element_pattern(elem_pattern_name, theta)
 
     full = f1 * af
@@ -207,7 +88,7 @@ def compute_pattern(
 
 
 # ---------------------------------------------------------------------------
-# 2. Функция отображения (только график)
+# 2. Визуализация
 # ---------------------------------------------------------------------------
 
 
@@ -240,12 +121,7 @@ def plot_array_1d(x_arr: np.ndarray, amplitudes: np.ndarray):
 def plot_pattern(
     result: PatternResult, title: str = "Диаграмма направленности линейной АР"
 ):
-    """Строит график ДН по результату compute_pattern.
-
-    Параметры:
-        result — PatternResult, возвращённый compute_pattern
-        title  — заголовок графика
-    """
+    """Строит график ДН по результату compute_pattern."""
     fig, ax = plt.subplots(figsize=(8, 6))
     ax.plot(result["theta_deg"], result["pattern_db"], label=result["label"])
 
@@ -265,19 +141,13 @@ def plot_pattern(
 
 
 def export_pattern_csv(result: PatternResult, path: Path, freq_hz: float = 0.0):
-    """Экспорт ДН в CSV, совместимый с CST Studio Suite.
-
-    Формат: Theta [deg.]; Phi [deg.]; Abs(Dir.)[dBi]; Abs(Theta)[dB]; Abs(Phi)[dB]
-    Для 1D решётки Phi = 0° для всех строк.
-    """
+    """Экспорт 1D ДН в CSV, совместимый с CST Studio Suite."""
     with open(path, "w", newline="") as f:
-        f.write(f"# Farfield Pattern Export\n")
+        f.write("# Farfield Pattern Export\n")
         f.write(f"# Frequency [Hz]: {freq_hz:.6e}\n")
         f.write(f"# N elements: {result['N']}\n")
         f.write(f"# Directivity [dBi]: {result['D0_db']:.2f}\n")
-        f.write(
-            "Theta [deg.]; Phi [deg.]; Abs(Dir.)[dB]; Abs(F); Phase(F)[deg.]\n"
-        )
+        f.write("Theta [deg.]; Phi [deg.]; Abs(Dir.)[dB]; Abs(F); Phase(F)[deg.]\n")
         af = result["array_factor"]
         phase = result["phase_deg"]
         for i, theta_deg in enumerate(result["theta_deg"]):
@@ -289,22 +159,19 @@ def export_pattern_csv(result: PatternResult, path: Path, freq_hz: float = 0.0):
 
 
 # ---------------------------------------------------------------------------
-# Точка входа (скрипт)
+# Точка входа
 # ---------------------------------------------------------------------------
 
 
 def main():
     logger.info("Starting 1D antenna array calculation")
 
-    with open(CONFIG_PATH) as f:
-        cfg = yaml.safe_load(f)["array_1d"]
-
+    cfg = load_config("array_1d")
     freq_0 = cfg["freq_hz"]
     n_theta = cfg["n_theta"]
     elem_pattern_name = cfg.get("element_pattern", "isotropic")
     csv_file = cfg.get("csv_file")
 
-    c_lib = initialize_library(str(LIB_PATH))
     wave_length = SPEED_OF_LIGHT / freq_0
 
     if csv_file is not None:
@@ -331,14 +198,12 @@ def main():
         extra_label = f"d={delta_x:.4f} м, "
         logger.debug("Uniform mode: N=%d, d=%.4f m", N, delta_x)
 
-    result = compute_pattern(
-        x_arr, amplitudes, freq_0, n_theta, elem_pattern_name, c_lib
-    )
+    result = compute_pattern(x_arr, amplitudes, freq_0, n_theta, elem_pattern_name)
     result["label"] = extra_label + result["label"]
 
-    export_pattern_csv(result, Path(__file__).parent / "output" / "output_1d.csv", freq_0)
-
-    from analysis import analyze_pattern_1d, format_analysis
+    export_pattern_csv(
+        result, Path(__file__).parent / "output" / "output_1d.csv", freq_0
+    )
 
     analysis = analyze_pattern_1d(result)
     logger.info("Параметры главного лепестка:\n%s", format_analysis(analysis))

@@ -1,5 +1,4 @@
 import logging
-import platform
 import sys
 from pathlib import Path
 
@@ -31,20 +30,12 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from util import initialize_library, calculate_delta_x
-from calc_1d import compute_pattern, load_array_from_csv
+from common import SPEED_OF_LIGHT, setup_logging, load_array_from_csv
+from util import calculate_delta_x
+from calc_1d import compute_pattern
 
-logging.basicConfig(
-    level=logging.DEBUG,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-)
-logging.getLogger("matplotlib").setLevel(logging.WARNING)
+setup_logging()
 logger = logging.getLogger(__name__)
-
-SPEED_OF_LIGHT = 3e8
-ROOT = Path(__file__).parent.parent
-_LIB_SUFFIX = {"Darwin": ".dylib", "Windows": ".dll"}.get(platform.system(), ".so")
-LIB_PATH = ROOT / "build" / f"libAntennaArray{_LIB_SUFFIX}"
 
 
 # ---------------------------------------------------------------------------
@@ -56,9 +47,8 @@ class CalcWorker(QThread):
     finished = pyqtSignal(dict)
     error = pyqtSignal(str)
 
-    def __init__(self, c_lib, params):
+    def __init__(self, params):
         super().__init__()
-        self.c_lib = c_lib
         self.params = params
 
     def run(self):
@@ -84,7 +74,6 @@ class CalcWorker(QThread):
                 p["freq"],
                 p["n_points"],
                 p["elem_pattern"],
-                self.c_lib,
             )
             self.finished.emit(dict(result))
         except Exception as e:
@@ -117,9 +106,8 @@ class PlotCanvas(FigureCanvas):
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, c_lib):
+    def __init__(self):
         super().__init__()
-        self.c_lib = c_lib
         self.worker = None
         self._csv_path = None
         self.setWindowTitle("Antenna Array Calculator")
@@ -275,7 +263,7 @@ class MainWindow(QMainWindow):
         }
         self.btn_calc.setEnabled(False)
         self.status_label.setText("Расчёт…")
-        self.worker = CalcWorker(self.c_lib, params)
+        self.worker = CalcWorker(params)
         self.worker.finished.connect(self._on_result)
         self.worker.error.connect(self._on_error)
         self.worker.start()
@@ -380,15 +368,8 @@ class MainWindow(QMainWindow):
 
 
 def main():
-    logger.info("Loading library: %s", LIB_PATH)
-    try:
-        c_lib = initialize_library(str(LIB_PATH))
-    except OSError as e:
-        print(f"Cannot load library: {e}", file=sys.stderr)
-        sys.exit(1)
-
     app = QApplication(sys.argv)
-    window = MainWindow(c_lib)
+    window = MainWindow()
     window.show()
     sys.exit(app.exec())
 

@@ -4,7 +4,6 @@
 и с экспортированными CSV-файлами (формат output_1d.csv / output_2d.csv).
 """
 
-import csv
 import logging
 from pathlib import Path
 
@@ -172,7 +171,9 @@ def analyze_cut(theta_deg: np.ndarray, pattern_db: np.ndarray) -> dict:
     level_10 = peak_db - 10.0
     left_10 = _find_level_crossing(theta_deg, pattern_db, peak_idx, -1, level_10)
     right_10 = _find_level_crossing(theta_deg, pattern_db, peak_idx, +1, level_10)
-    bw_10 = (right_10 - left_10) if (left_10 is not None and right_10 is not None) else None
+    bw_10 = (
+        (right_10 - left_10) if (left_10 is not None and right_10 is not None) else None
+    )
 
     # Первые нули
     null_left_deg, _ = _find_first_null(theta_deg, pattern_db, peak_idx, -1)
@@ -187,8 +188,9 @@ def analyze_cut(theta_deg: np.ndarray, pattern_db: np.ndarray) -> dict:
     first_sll_db = max(sll_values) if sll_values else None
 
     # Все боковые лепестки → максимальный и средний УБЛ
-    all_sl = (_find_all_sidelobes(theta_deg, pattern_db, peak_idx, -1)
-              + _find_all_sidelobes(theta_deg, pattern_db, peak_idx, +1))
+    all_sl = _find_all_sidelobes(
+        theta_deg, pattern_db, peak_idx, -1
+    ) + _find_all_sidelobes(theta_deg, pattern_db, peak_idx, +1)
     if all_sl:
         all_levels = [lvl for _, lvl in all_sl]
         max_sll_db = float(max(all_levels))
@@ -214,8 +216,14 @@ def analyze_cut(theta_deg: np.ndarray, pattern_db: np.ndarray) -> dict:
         symmetry_3db = None
 
     half_left_null = (peak_deg - null_left_deg) if null_left_deg is not None else None
-    half_right_null = (null_right_deg - peak_deg) if null_right_deg is not None else None
-    if half_left_null is not None and half_right_null is not None and half_right_null > 0:
+    half_right_null = (
+        (null_right_deg - peak_deg) if null_right_deg is not None else None
+    )
+    if (
+        half_left_null is not None
+        and half_right_null is not None
+        and half_right_null > 0
+    ):
         symmetry_null = half_left_null / half_right_null
     else:
         symmetry_null = None
@@ -382,7 +390,9 @@ def format_analysis(analysis: dict) -> str:
     if "cut_xz" in analysis:
         # 2D результат
         if analysis.get("D0_db") is not None:
-            lines.append(f"  КНД D₀ = {analysis['D0']:.2f} ({analysis['D0_db']:.2f} дБ)")
+            lines.append(
+                f"  КНД D₀ = {analysis['D0']:.2f} ({analysis['D0_db']:.2f} дБ)"
+            )
         for name, key in [("φ=0° (xz)", "cut_xz"), ("φ=90° (yz)", "cut_yz")]:
             cut = analysis[key]
             lines.append(f"  Срез {name}:")
@@ -426,7 +436,9 @@ def format_analysis(analysis: dict) -> str:
     else:
         # 1D результат
         if analysis.get("D0_db") is not None:
-            lines.append(f"  КНД D₀ = {analysis['D0']:.2f} ({analysis['D0_db']:.2f} дБ)")
+            lines.append(
+                f"  КНД D₀ = {analysis['D0']:.2f} ({analysis['D0_db']:.2f} дБ)"
+            )
         lines.append(f"  Максимум: {analysis['peak_deg']:.2f}°")
         if analysis["beamwidth_3db"] is not None:
             lines.append(f"  Ширина луча (−3 дБ):  {analysis['beamwidth_3db']:.2f}°")
