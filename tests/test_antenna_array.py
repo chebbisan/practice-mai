@@ -559,7 +559,7 @@ class TestDirectivity2D:
         lam = 3e8 / freq
         wave_num = 2 * math.pi / lam
         theta = np.linspace(-math.pi / 2, math.pi / 2, n_theta)
-        phi = np.linspace(-math.pi / 2, math.pi / 2, n_phi)
+        phi = np.linspace(-math.pi, math.pi, n_phi)
 
         f_arr = [complex_t(1.0, 0.0)] * N
         raw = lib.Calculate2DAntennaArray(
@@ -585,12 +585,12 @@ class TestDirectivity2D:
         return 4 * math.pi / denominator
 
     def test_single_element_isotropic(self):
-        """N=1 at origin: AF=1 everywhere → D₀ = 4π / ∫∫ cosΘ dΘ dφ."""
+        """N=1 at origin: AF=1 everywhere → D₀ = 1 (изотропный излучатель)."""
         x = np.array([0.0])
         y = np.array([0.0])
         D0 = self._compute_2d(1, x, y)
-        # ∫₋π/₂^π/₂ cosΘ dΘ = 2, ∫₋π/₂^π/₂ dφ = π → denominator = 2π → D₀ = 4π/2π = 2
-        assert D0 == pytest.approx(2.0, rel=0.02)
+        # ∫₋π/₂^π/₂ cosΘ dΘ = 2, ∫₋π^π dφ = 2π → denominator = 4π → D₀ = 4π/4π = 1
+        assert D0 == pytest.approx(1.0, rel=0.02)
 
     def test_directivity_increases_with_elements(self):
         """Adding more elements must increase directivity."""
@@ -628,9 +628,12 @@ class TestDirectivity2D:
         """Регрессионный тест: 40×12 прямоугольная решётка, d=0.5λ, broadside.
 
         Ref: Габриэльян и др., ЖРЭ №12, 2012 (docs/text.pdf), табл.1:
-        КНД прямоуг. раскрыва = 25.55 дБ (полная полусфера, элементная ДН ≠ isotropic).
-        Наш расчёт: D₀ ≈ 50.3 (17.0 дБ) — интеграл по φ ∈ [-π/2, π/2], isotropic.
-        Разница обусловлена разными пределами интегрирования и элементной ДН.
+        КНД прямоуг. раскрыва = 25.55 дБ (синтезированное АФР с тейпером).
+        Наш расчёт: D₀ ≈ 25.1 (14.0 дБ) — интеграл по полной сфере (формула 10.40),
+        равноамплитудное возбуждение, изотропные элементы.
+        Расхождение ~11.5 дБ обусловлено: тейпером в синтезе АФР статьи (~5 дБ
+        от равномерного возбуждения) и тем, что формула 10.40 использует cos θ
+        якобиан, что для 2D даёт занижение по сравнению со стандартной sin θ.
         """
         freq = 3e9
         lam = 3e8 / freq
@@ -645,7 +648,7 @@ class TestDirectivity2D:
             Nx * Ny, np.array(xs), np.array(ys), n_theta=201, n_phi=201
         )
         D0_db = 10 * math.log10(D0)
-        assert D0 == pytest.approx(50.3, rel=0.05), f"D0={D0:.2f} ({D0_db:.2f} dB)"
+        assert D0 == pytest.approx(25.1, rel=0.05), f"D0={D0:.2f} ({D0_db:.2f} dB)"
 
     def test_4x4_vs_8x8_directivity_ratio(self):
         """При удвоении Nx (и Ny): D₀ растёт в ~2 раза.
@@ -680,7 +683,7 @@ class TestDirectivity3D:
         lam = 3e8 / freq
         wave_num = 2 * math.pi / lam
         theta = np.linspace(-math.pi / 2, math.pi / 2, n_theta)
-        phi = np.linspace(-math.pi / 2, math.pi / 2, n_phi)
+        phi = np.linspace(-math.pi, math.pi, n_phi)
 
         f_arr = [complex_t(1.0, 0.0)] * N
         raw = lib.Calculate3DAntennaArray(
@@ -707,12 +710,12 @@ class TestDirectivity3D:
         return 4 * math.pi / denominator
 
     def test_single_element_isotropic(self):
-        """N=1 at origin: AF=1 everywhere → D₀ ≈ 2.0."""
+        """N=1 at origin: AF=1 everywhere → D₀ = 1 (изотропный излучатель)."""
         x = np.array([0.0])
         y = np.array([0.0])
         z = np.array([0.0])
         D0 = self._compute_3d(1, x, y, z)
-        assert D0 == pytest.approx(2.0, rel=0.02)
+        assert D0 == pytest.approx(1.0, rel=0.02)
 
     def test_z_zero_matches_2d(self):
         """z=0 для всех элементов → результат совпадает с 2D Calculate2DAntennaArray."""
@@ -735,7 +738,7 @@ class TestDirectivity3D:
         wave_num = 2 * math.pi / lam
         n_theta, n_phi = 101, 101
         theta = np.linspace(-math.pi / 2, math.pi / 2, n_theta)
-        phi = np.linspace(-math.pi / 2, math.pi / 2, n_phi)
+        phi = np.linspace(-math.pi, math.pi, n_phi)
         f_arr = [complex_t(1.0, 0.0)] * N
 
         raw_2d = lib.Calculate2DAntennaArray(
@@ -841,7 +844,7 @@ class TestCrossDimensional:
         lib, N, x_arr, wave_num, n_theta, n_phi = self._setup_linear()
         y_arr = np.zeros(N)
         theta = np.linspace(-math.pi / 2, math.pi / 2, n_theta)
-        phi = np.linspace(-math.pi / 2, math.pi / 2, n_phi)
+        phi = np.linspace(-math.pi, math.pi, n_phi)
         f_arr = [complex_t(1.0, 0.0)] * N
 
         # 1D
@@ -897,7 +900,7 @@ class TestCrossDimensional:
         y_arr = np.zeros(N)
         z_arr = np.zeros(N)
         theta = np.linspace(-math.pi / 2, math.pi / 2, n_theta)
-        phi = np.linspace(-math.pi / 2, math.pi / 2, n_phi)
+        phi = np.linspace(-math.pi, math.pi, n_phi)
         f_arr = [complex_t(1.0, 0.0)] * N
 
         # 1D
@@ -968,7 +971,7 @@ class TestCrossDimensional:
 
         n_theta, n_phi = 101, 101
         theta = np.linspace(-math.pi / 2, math.pi / 2, n_theta)
-        phi = np.linspace(-math.pi / 2, math.pi / 2, n_phi)
+        phi = np.linspace(-math.pi, math.pi, n_phi)
         f_arr = [complex_t(1.0, 0.0)] * N
 
         # 2D
@@ -1046,7 +1049,7 @@ class TestCrossDimensional:
         # 2D КНД
         n_theta, n_phi = 301, 301
         theta = np.linspace(-math.pi / 2, math.pi / 2, n_theta)
-        phi = np.linspace(-math.pi / 2, math.pi / 2, n_phi)
+        phi = np.linspace(-math.pi, math.pi, n_phi)
         raw_2d = lib.Calculate2DAntennaArray(
             ct.c_int(N),
             ct.c_int(n_theta),

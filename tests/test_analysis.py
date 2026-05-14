@@ -72,7 +72,7 @@ def _make_2d_pattern(Nx, Ny, n_theta=201, n_phi=201):
     N = len(x_arr)
 
     theta = np.linspace(-math.pi / 2, math.pi / 2, n_theta)
-    phi = np.linspace(-math.pi / 2, math.pi / 2, n_phi)
+    phi = np.linspace(-math.pi, math.pi, n_phi)
 
     st_cp = np.outer(np.sin(theta), np.cos(phi))
     st_sp = np.outer(np.sin(theta), np.sin(phi))

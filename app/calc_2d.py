@@ -14,6 +14,7 @@ from common import (
 )
 from analysis import analyze_pattern_2d, format_analysis
 from plot_2d import plot_heatmap
+from util import compute_2d_array_factor_cpp
 
 setup_logging()
 logger = logging.getLogger(__name__)
@@ -44,26 +45,11 @@ def compute_pattern_2d(
     )
 
     theta = np.linspace(-np.pi / 2, np.pi / 2, n_theta)
-    phi = np.linspace(-np.pi / 2, np.pi / 2, n_phi)
+    phi = np.linspace(-np.pi, np.pi, n_phi)
 
-    # NumPy vectorized array factor
-    st_cp = np.outer(np.sin(theta), np.cos(phi))
-    st_sp = np.outer(np.sin(theta), np.sin(phi))
-    af_complex = np.zeros((n_theta, n_phi), dtype=complex)
-    if z_arr is not None:
-        cos_theta_2d = np.cos(theta)[:, np.newaxis] * np.ones((1, n_phi))
-        for n in range(N):
-            af_complex += amplitudes[n] * np.exp(
-                -1j
-                * wave_num
-                * (x_arr[n] * st_cp + y_arr[n] * st_sp + z_arr[n] * cos_theta_2d)
-            )
-    else:
-        for n in range(N):
-            af_complex += amplitudes[n] * np.exp(
-                -1j * wave_num * (x_arr[n] * st_cp + y_arr[n] * st_sp)
-            )
-    af_complex /= N
+    af_complex = compute_2d_array_factor_cpp(
+        x_arr, y_arr, amplitudes, theta, phi, wave_num, z_arr=z_arr
+    )
 
     af_2d = np.abs(af_complex)
     phase_2d = np.degrees(np.angle(af_complex))

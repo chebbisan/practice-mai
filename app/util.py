@@ -1,5 +1,7 @@
 import ctypes as ct
 import logging
+import platform
+from pathlib import Path
 from typing import List
 
 import numpy as np
@@ -11,6 +13,10 @@ except ImportError:
     from complex import complex_t  # run as script from app/
 
 logger = logging.getLogger(__name__)
+
+_LIB_SUFFIX = {"Darwin": ".dylib", "Windows": ".dll"}.get(platform.system(), ".so")
+_LIB_PATH = Path(__file__).parent.parent / "build" / f"libAntennaArray{_LIB_SUFFIX}"
+_LIB = None
 
 
 # Инициализация аргументов C-функций
@@ -165,6 +171,79 @@ def list_to_c_double_array(py_list: List):
 def list_to_c_complex_array(py_list: List):
     logger.debug("Converting list of %d complex_t to C array", len(py_list))
     return (complex_t * len(py_list))(*py_list)
+
+
+def get_library():
+    """Lazily load and cache the shared C++ library."""
+    global _LIB
+    if _LIB is None:
+        if not _LIB_PATH.exists():
+            raise FileNotFoundError(
+                f"shared library not found: {_LIB_PATH} — build the project first"
+            )
+        _LIB = initialize_library(str(_LIB_PATH))
+    return _LIB
+
+
+def compute_2d_array_factor_cpp(
+    x_arr: np.ndarray,
+    y_arr: np.ndarray,
+    amplitudes: np.ndarray,
+    theta: np.ndarray,
+    phi: np.ndarray,
+    wave_num: float,
+    z_arr: np.ndarray | None = None,
+) -> np.ndarray:
+    """Множитель решётки через C++ Calculate2D/3DAntennaArray. Возвращает (n_theta, n_phi) complex128, нормированный на N."""
+    lib = get_library()
+    N = int(x_arr.size)
+    n_theta = int(theta.size)
+    n_phi = int(phi.size)
+
+    f_arr = (complex_t * N)()
+    for i in range(N):
+        f_arr[i].real = float(amplitudes[i])
+        f_arr[i].imag = 0.0
+
+    c_x = list_to_c_double_array(x_arr)
+    c_y = list_to_c_double_array(y_arr)
+    c_theta = list_to_c_double_array(theta)
+    c_phi = list_to_c_double_array(phi)
+
+    if z_arr is not None:
+        c_z = list_to_c_double_array(z_arr)
+        raw = lib.Calculate3DAntennaArray(
+            ct.c_int(N),
+            ct.c_int(n_theta),
+            ct.c_int(n_phi),
+            f_arr,
+            c_x,
+            c_y,
+            c_z,
+            c_theta,
+            c_phi,
+            ct.c_double(wave_num),
+        )
+    else:
+        raw = lib.Calculate2DAntennaArray(
+            ct.c_int(N),
+            ct.c_int(n_theta),
+            ct.c_int(n_phi),
+            f_arr,
+            c_x,
+            c_y,
+            c_theta,
+            c_phi,
+            ct.c_double(wave_num),
+        )
+
+    # complex_t == {double real, double imag} совпадает по layout с complex128
+    total = n_theta * n_phi
+    DoubleBuf = ct.c_double * (total * 2)
+    raw_doubles = ct.cast(raw, ct.POINTER(DoubleBuf)).contents
+    af = np.frombuffer(raw_doubles, dtype=np.complex128).reshape(n_theta, n_phi).copy()
+    lib.FreeComplexArr(raw)
+    return af
 
 
 def calculate_delta_x(wave_length, theta):
