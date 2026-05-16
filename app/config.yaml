@@ -8,7 +8,7 @@ array_1d:
   d: null         # element spacing, m  (null → λ/(1+sin(steer_deg)))
   steer_deg: 30   # max steering angle for spacing formula (used when d=null)
   n_theta: 1001   # angular resolution
-  element_pattern: cosine  # element amplitude pattern: isotropic | cosine | dipole
+  element_pattern: isotropic  # element amplitude pattern: isotropic | cosine | dipole
   csv_file: input/array_example.csv  # path to CSV with arbitrary layout (null → use uniform config above)
                   # CSV columns: x_m, amplitude_db  (header row optional)
 
@@ -16,8 +16,8 @@ array_1d:
 # Ref: Габриэльян и др., ЖРЭ №12, 2012 — эквивалентный прямоуг. раскрыв 40×12, d=0.5λ
 array_2d:
   freq_hz: 3.0e+9
-  n_theta: 401     # angular resolution along theta
-  n_phi: 401       # angular resolution along phi
+  n_theta: 1001     # angular resolution along theta
+  n_phi: 1001       # angular resolution along phi
   element_pattern: isotropic
   csv_file: input/array_2d_example.csv  # CSV columns: x_m, y_m, amplitude_db
 
@@ -26,7 +26,7 @@ array_2d:
 # Формула 12.9 (Воскресенский и др.): AF(θ,φ) = (1/N)Σ fₙ exp(-jk(xₙsinθcosφ + yₙsinθsinφ + zₙcosθ))
 array_3d:
   freq_hz: 3.0e+9
-  n_theta: 401     # angular resolution along theta
-  n_phi: 401       # angular resolution along phi
+  n_theta: 4001     # angular resolution along theta
+  n_phi: 4001       # angular resolution along phi
   element_pattern: isotropic
   csv_file: input/array_3d_example.csv  # CSV columns: x_m, y_m, z_m, amplitude_db
