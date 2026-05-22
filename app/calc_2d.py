@@ -63,7 +63,7 @@ def compute_pattern_2d(
     pattern_db = 20 * np.log10(np.maximum(full, 1e-10))
     peak_idx = np.unravel_index(np.argmax(full), full.shape)
 
-    # КНД по формуле 10.40: D₀ = 4π / ∫∫ F²(Θ,φ) cosΘ dΘ dφ
+    # КНД по формуле: D₀ = 4π / ∫∫ F²(Θ,φ) cosΘ dΘ dφ
     integrand = full**2 * np.cos(theta)[:, np.newaxis]
     inner = np.trapezoid(integrand, theta, axis=0)
     D0 = 4 * np.pi / np.trapezoid(inner, phi)

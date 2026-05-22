@@ -69,7 +69,7 @@ def compute_pattern(
     full /= full.max()
     phase_deg = np.degrees(np.angle(af_complex))
 
-    # КНД по формуле 10.41 (осевая симметрия): D₀ = 2 / ∫ F²(Θ)cosΘ dΘ
+    # КНД по формуле (осевая симметрия): D₀ = 2 / ∫ F²(Θ)cosΘ dΘ
     D0 = 2.0 / np.trapezoid(full**2 * np.cos(theta), theta)
     D0_db = 10 * np.log10(D0)
     logger.debug("Directivity D0=%.2f (%.2f dB)", D0, D0_db)
