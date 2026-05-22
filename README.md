@@ -72,20 +72,20 @@ array_1d:
   d: null             # шаг (null → λ/(1+sin(steer_deg)))
   steer_deg: 30       # угол сканирования
   n_theta: 1001       # угловое разрешение
-  element_pattern: cosine   # isotropic | cosine | dipole
+  element_pattern: isotropic   # isotropic | cosine | dipole
   csv_file: input/array_example.csv
 
 array_2d:
   freq_hz: 3.0e+9
-  n_theta: 401
-  n_phi: 401
+  n_theta: 1001
+  n_phi: 1001
   element_pattern: isotropic
   csv_file: input/array_2d_example.csv
 
 array_3d:
   freq_hz: 3.0e+9
-  n_theta: 401
-  n_phi: 401
+  n_theta: 4001
+  n_phi: 4001
   element_pattern: isotropic
   csv_file: input/array_3d_example.csv
 ```
